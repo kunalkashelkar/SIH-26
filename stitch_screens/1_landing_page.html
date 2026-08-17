@@ -1,0 +1,352 @@
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "inverse-surface": "#e0e2ea",
+                "error-container": "#93000a",
+                "on-secondary": "#2b3138",
+                "secondary-container": "#41474f",
+                "surface-container-highest": "#32353b",
+                "secondary": "#c1c7d0",
+                "surface-tint": "#a2c9ff",
+                "on-error": "#690005",
+                "on-primary-fixed-variant": "#004882",
+                "background": "#0D1117",
+                "on-tertiary-container": "#4f3400",
+                "primary": "#a2c9ff",
+                "on-tertiary-fixed": "#281800",
+                "on-primary-fixed": "#001c38",
+                "tertiary-fixed-dim": "#ffba42",
+                "tertiary-fixed": "#ffddaf",
+                "on-tertiary-fixed-variant": "#614000",
+                "surface": "#0D1117",
+                "surface-dim": "#0D1117",
+                "on-secondary-fixed": "#161c23",
+                "inverse-on-surface": "#2d3136",
+                "outline-variant": "#30363D",
+                "on-secondary-container": "#b0b5be",
+                "on-surface-variant": "#8b949e",
+                "on-primary-container": "#003a6b",
+                "primary-fixed-dim": "#a2c9ff",
+                "on-primary": "#00315c",
+                "error": "#ffb4ab",
+                "tertiary-container": "#da9600",
+                "tertiary": "#ffba42",
+                "on-tertiary": "#432c00",
+                "secondary-fixed": "#dde3ec",
+                "surface-variant": "#161B22",
+                "primary-container": "#58a6ff",
+                "on-surface": "#e0e2ea",
+                "surface-container-lowest": "#0b0e14",
+                "surface-container-low": "#161B22",
+                "outline": "#30363D",
+                "secondary-fixed-dim": "#c1c7d0",
+                "on-background": "#c9d1d9",
+                "surface-container": "#161B22",
+                "primary-fixed": "#d3e4ff",
+                "surface-container-high": "#272a30",
+                "inverse-primary": "#0060aa",
+                "surface-bright": "#36393f",
+                "on-secondary-fixed-variant": "#41474f",
+                "on-error-container": "#ffdad6"
+        },
+        "borderRadius": {
+                "DEFAULT": "6px",
+                "lg": "6px",
+                "xl": "8px",
+                "full": "9999px"
+        },
+        "spacing": {
+                "container_padding": "24px",
+                "header_height": "48px",
+                "stack_gap_sm": "4px",
+                "sidebar_width": "240px",
+                "gutter": "16px",
+                "stack_gap_md": "8px",
+                "margin": "24px",
+                "xl": "32px",
+                "lg": "24px",
+                "xs": "4px",
+                "base": "4px",
+                "sm": "8px",
+                "md": "16px"
+        },
+        "fontFamily": {
+                "h2": [
+                        "system-ui", "-apple-system", "sans-serif"
+                ],
+                "body-lg": [
+                        "system-ui", "-apple-system", "sans-serif"
+                ],
+                "body-sm": [
+                        "system-ui", "-apple-system", "sans-serif"
+                ],
+                "body-md": [
+                        "system-ui", "-apple-system", "sans-serif"
+                ],
+                "h3": [
+                        "system-ui", "-apple-system", "sans-serif"
+                ],
+                "mono-md": [
+                        "JetBrains Mono", "monospace"
+                ],
+                "mono-sm": [
+                        "JetBrains Mono", "monospace"
+                ],
+                "label-caps": [
+                        "system-ui", "-apple-system", "sans-serif"
+                ],
+                "h1": [
+                        "system-ui", "-apple-system", "sans-serif"
+                ]
+        },
+        "fontSize": {
+                "h2": [
+                        "24px",
+                        {
+                                "lineHeight": "36px",
+                                "letterSpacing": "-0.01em",
+                                "fontWeight": "600"
+                        }
+                ],
+                "body-lg": [
+                        "16px",
+                        {
+                                "lineHeight": "24px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "body-sm": [
+                        "12px",
+                        {
+                                "lineHeight": "18px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "body-md": [
+                        "14px",
+                        {
+                                "lineHeight": "20px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "h3": [
+                        "20px",
+                        {
+                                "lineHeight": "30px",
+                                "fontWeight": "600"
+                        }
+                ],
+                "mono-md": [
+                        "14px",
+                        {
+                                "lineHeight": "20px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "mono-sm": [
+                        "12px",
+                        {
+                                "lineHeight": "18px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "label-caps": [
+                        "12px",
+                        {
+                                "lineHeight": "16px",
+                                "fontWeight": "600"
+                        }
+                ],
+                "h1": [
+                        "32px",
+                        {
+                                "lineHeight": "48px",
+                                "letterSpacing": "-0.02em",
+                                "fontWeight": "600"
+                        }
+                ]
+        }
+},
+    },
+  }
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100..800&amp;display=swap" rel="stylesheet"/>
+</head><body class="bg-background font-body-md text-on-background flex items-center justify-center min-h-screen"><main class="w-full max-w-md"><div class="flex flex-col w-full relative overflow-hidden bg-background">
+<div class="absolute inset-0 pointer-events-none opacity-20" style="background-image: radial-gradient(circle at 1px 1px, currentColor 1px, transparent 1px); background-size: 32px 32px; color: var(--color-outline-variant)"></div>
+<section class="relative min-h-[819px] flex flex-col justify-center items-center px-gutter py-xl text-center z-10">
+<div class="inline-flex items-center gap-sm px-md py-sm bg-surface-container rounded-full shadow-sm mb-lg border border-outline-variant">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span class="font-label-caps text-label-caps text-on-surface tracking-widest uppercase">Sentinel Core v2.4 Released</span>
+</div>
+<h1 class="font-h1 text-h1 md:text-[64px] leading-tight text-on-background max-w-4xl mb-lg font-bold tracking-tight">
+      Intelligent Web Application <span class="text-primary-container">Security Testing</span>
+</h1>
+<p class="font-mono-md text-mono-md text-on-surface-variant max-w-2xl mb-xl">
+      Discover your attack surface. Prioritize what matters. Fuzz intelligently. Validate vulnerabilities.
+    </p>
+<div class="flex flex-col sm:flex-row gap-md items-center w-full max-w-md justify-center">
+<button class="w-full sm:w-auto px-lg py-md bg-primary-container text-surface-container-lowest font-body-md text-body-md font-semibold rounded-lg shadow-md hover:opacity-90 transition-opacity flex items-center justify-center gap-sm">
+<span class="material-symbols-outlined text-[20px]">radar</span>
+        Start Scanning
+      </button>
+<button class="w-full sm:w-auto px-lg py-md bg-transparent border border-outline-variant text-on-background font-body-md text-body-md font-semibold rounded-lg hover:bg-surface-container transition-colors flex items-center justify-center gap-sm">
+<span class="material-symbols-outlined text-[20px]">menu_book</span>
+        View Documentation
+      </button>
+</div>
+<div class="mt-24 w-full max-w-5xl rounded-xl overflow-hidden shadow-2xl relative border border-outline-variant bg-[#161B22] group">
+<div class="flex items-center px-4 py-2 bg-[#161B22] border-b border-[#30363D]">
+<div class="flex gap-2">
+<div class="w-3 h-3 rounded-full bg-[#30363D]"></div>
+<div class="w-3 h-3 rounded-full bg-[#30363D]"></div>
+<div class="w-3 h-3 rounded-full bg-[#30363D]"></div>
+</div>
+<div class="ml-4 font-mono-sm text-mono-sm text-on-surface-variant">sentinel-scan --target https://example.com</div>
+</div>
+<div class="p-6 font-mono-md text-mono-md text-on-surface text-left overflow-x-auto relative">
+<pre class="opacity-80"><span class="text-primary-container">[+]</span> Initializing target scope: example.com
+<span class="text-primary-container">[+]</span> Active discovery module loaded (hybrid mode)
+<span class="text-tertiary">[*]</span> Found 142 unique endpoints
+<span class="text-tertiary">[*]</span> Building Attack Surface Graph... <span class="text-secondary">Done (42ms)</span>
+<span class="text-primary-container">[+]</span> Prioritizing high-risk vectors
+<span class="text-error">[!]</span> Critical vulnerability detected: SQL Injection (SQLi)
+    <span class="text-on-surface-variant">Path: /api/v1/users?id=1' OR '1'='1</span>
+    <span class="text-on-surface-variant">Confidence: 99%</span>
+<span class="text-secondary">[+]</span> Validation successful. Exploit confirmed.</pre>
+<div class="absolute inset-0 bg-gradient-to-t from-[#161B22] via-transparent to-transparent z-10 pointer-events-none"></div>
+</div>
+</div>
+</section>
+<section class="py-xl px-gutter z-10 relative bg-[#0D1117] border-y border-[#30363D]">
+<div class="max-w-6xl mx-auto">
+<div class="text-center mb-16">
+<h2 class="font-h2 text-h2 text-on-background mb-4">The Sentinel Pipeline</h2>
+<p class="font-mono-md text-mono-md text-on-surface-variant max-w-2xl mx-auto">A deterministic approach to uncovering critical security flaws before they reach production.</p>
+</div>
+<div class="relative">
+<div class="hidden lg:block absolute top-8 left-0 w-full h-[1px] bg-outline-variant border-dashed border-b border-[#30363D]"></div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-lg relative">
+<!-- Pipeline Stages -->
+<div class="flex flex-col items-center text-center relative group">
+<div class="w-16 h-16 rounded-lg bg-[#0D1117] border border-[#30363D] flex items-center justify-center z-10 mb-4 shadow-sm group-hover:border-primary-container transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary-container">search</span>
+</div>
+<h3 class="font-label-caps text-label-caps text-on-background font-semibold mb-2 uppercase tracking-wider">DISCOVER</h3>
+<p class="font-mono-sm text-mono-sm text-on-surface-variant">Deep crawling and parameter extraction</p>
+</div>
+<div class="flex flex-col items-center text-center relative group">
+<div class="w-16 h-16 rounded-lg bg-[#0D1117] border border-[#30363D] flex items-center justify-center z-10 mb-4 shadow-sm group-hover:border-primary-container transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary-container">schema</span>
+</div>
+<h3 class="font-label-caps text-label-caps text-on-background font-semibold mb-2 uppercase tracking-wider">MAP</h3>
+<p class="font-mono-sm text-mono-sm text-on-surface-variant">Build internal state and logic graph</p>
+</div>
+<div class="flex flex-col items-center text-center relative group">
+<div class="w-16 h-16 rounded-lg bg-[#0D1117] border border-[#30363D] flex items-center justify-center z-10 mb-4 shadow-sm group-hover:border-primary-container transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary-container">sort</span>
+</div>
+<h3 class="font-label-caps text-label-caps text-on-background font-semibold mb-2 uppercase tracking-wider">PRIORITIZE</h3>
+<p class="font-mono-sm text-mono-sm text-on-surface-variant">Rank vectors by expected impact</p>
+</div>
+<div class="flex flex-col items-center text-center relative group">
+<div class="w-16 h-16 rounded-lg bg-[#0D1117] border border-[#30363D] flex items-center justify-center z-10 mb-4 shadow-sm group-hover:border-primary-container transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary-container">blur_on</span>
+</div>
+<h3 class="font-label-caps text-label-caps text-on-background font-semibold mb-2 uppercase tracking-wider">FUZZ</h3>
+<p class="font-mono-sm text-mono-sm text-on-surface-variant">Inject smart payloads adaptively</p>
+</div>
+<div class="flex flex-col items-center text-center relative group">
+<div class="w-16 h-16 rounded-lg bg-[#0D1117] border border-[#30363D] flex items-center justify-center z-10 mb-4 shadow-sm group-hover:border-primary-container transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary-container">verified</span>
+</div>
+<h3 class="font-label-caps text-label-caps text-on-background font-semibold mb-2 uppercase tracking-wider">VALIDATE</h3>
+<p class="font-mono-sm text-mono-sm text-on-surface-variant">Confirm exploitability without impact</p>
+</div>
+<div class="flex flex-col items-center text-center relative group">
+<div class="w-16 h-16 rounded-lg bg-[#0D1117] border border-[#30363D] flex items-center justify-center z-10 mb-4 shadow-sm group-hover:border-primary-container transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary-container">build</span>
+</div>
+<h3 class="font-label-caps text-label-caps text-on-background font-semibold mb-2 uppercase tracking-wider">REMEDIATE</h3>
+<p class="font-mono-sm text-mono-sm text-on-surface-variant">Actionable fixes and reproducer scripts</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="py-xl px-gutter z-10 bg-[#0D1117]">
+<div class="max-w-6xl mx-auto">
+<div class="mb-16 flex items-end justify-between">
+<div>
+<h2 class="font-h2 text-h2 text-on-background mb-4">Core Capabilities</h2>
+<p class="font-mono-md text-mono-md text-on-surface-variant max-w-xl">Built for modern architectures. Sentinel handles complex single-page apps, GraphQL APIs, and microservices with equal precision.</p>
+</div>
+<div class="hidden md:flex gap-2">
+<button class="w-10 h-10 rounded-lg bg-[#161B22] border border-[#30363D] flex items-center justify-center hover:bg-[#30363D] text-on-surface transition-colors"><span class="material-symbols-outlined">chevron_left</span></button>
+<button class="w-10 h-10 rounded-lg bg-[#161B22] border border-[#30363D] flex items-center justify-center hover:bg-[#30363D] text-on-surface transition-colors"><span class="material-symbols-outlined">chevron_right</span></button>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-lg">
+<div class="bg-[#161B22] border border-[#30363D] rounded-xl p-lg shadow-sm hover:border-primary-container transition-colors relative overflow-hidden group">
+<div class="w-10 h-10 rounded-lg bg-[#0D1117] border border-[#30363D] flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary-container text-[20px]">hub</span>
+</div>
+<h3 class="font-h3 text-h3 text-on-background font-semibold mb-3">Hybrid Discovery</h3>
+<p class="font-mono-sm text-mono-sm text-on-surface-variant">Combines active crawling, passive OSINT gathering, and API specification parsing to build a comprehensive map.</p>
+</div>
+<div class="bg-[#161B22] border border-[#30363D] rounded-xl p-lg shadow-sm hover:border-primary-container transition-colors relative overflow-hidden group">
+<div class="w-10 h-10 rounded-lg bg-[#0D1117] border border-[#30363D] flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary-container text-[20px]">account_tree</span>
+</div>
+<h3 class="font-h3 text-h3 text-on-background font-semibold mb-3">Attack Surface Graph</h3>
+<p class="font-mono-sm text-mono-sm text-on-surface-variant">Visualizes relationships between endpoints, parameters, and sensitive data flows in real-time.</p>
+</div>
+<div class="bg-[#161B22] border border-[#30363D] rounded-xl p-lg shadow-sm hover:border-primary-container transition-colors relative overflow-hidden group">
+<div class="w-10 h-10 rounded-lg bg-[#0D1117] border border-[#30363D] flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary-container text-[20px]">tune</span>
+</div>
+<h3 class="font-h3 text-h3 text-on-background font-semibold mb-3">Intelligent Prioritization</h3>
+<p class="font-mono-sm text-mono-sm text-on-surface-variant">Machine learning models score vectors based on business context, focusing the engine on critical paths first.</p>
+</div>
+<div class="bg-[#161B22] border border-[#30363D] rounded-xl p-lg shadow-sm hover:border-primary-container transition-colors relative overflow-hidden group">
+<div class="w-10 h-10 rounded-lg bg-[#0D1117] border border-[#30363D] flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary-container text-[20px]">bug_report</span>
+</div>
+<h3 class="font-h3 text-h3 text-on-background font-semibold mb-3">Adaptive Fuzzing</h3>
+<p class="font-mono-sm text-mono-sm text-on-surface-variant">Mutates payloads dynamically based on server responses, bypassing WAFs and uncovering edge-case logic flaws.</p>
+</div>
+<div class="bg-[#161B22] border border-[#30363D] rounded-xl p-lg shadow-sm hover:border-primary-container transition-colors relative overflow-hidden group">
+<div class="w-10 h-10 rounded-lg bg-[#0D1117] border border-[#30363D] flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary-container text-[20px]">gpp_good</span>
+</div>
+<h3 class="font-h3 text-h3 text-on-background font-semibold mb-3">Vulnerability Validation</h3>
+<p class="font-mono-sm text-mono-sm text-on-surface-variant">Automatically exploits findings in a safe, isolated manner to eliminate false positives and prove impact.</p>
+</div>
+<div class="bg-[#161B22] border border-[#30363D] rounded-xl p-lg shadow-sm hover:border-primary-container transition-colors relative overflow-hidden group">
+<div class="w-10 h-10 rounded-lg bg-[#0D1117] border border-[#30363D] flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-primary-container text-[20px]">description</span>
+</div>
+<h3 class="font-h3 text-h3 text-on-background font-semibold mb-3">Explainable Findings</h3>
+<p class="font-mono-sm text-mono-sm text-on-surface-variant">Generates detailed PoCs, raw HTTP requests, and remediation guidance tailored to the underlying tech stack.</p>
+</div>
+</div>
+</div>
+</section>
+<section class="py-xl px-gutter z-10 my-xl bg-[#0D1117]">
+<div class="max-w-4xl mx-auto bg-[#161B22] rounded-2xl p-xl text-center relative overflow-hidden border border-[#30363D] shadow-sm">
+<div class="absolute inset-0 opacity-10" style="background-image: repeating-linear-gradient(45deg, var(--color-outline-variant) 0, var(--color-outline-variant) 1px, transparent 0, transparent 50%); background-size: 20px 20px;"></div>
+<div class="relative z-10 flex flex-col items-center">
+<span class="material-symbols-outlined text-[48px] text-primary-container mb-6">security</span>
+<h2 class="font-h1 text-h1 text-on-background mb-4">Ready to secure your application?</h2>
+<p class="font-mono-md text-mono-md text-on-surface-variant max-w-xl mb-8">Deploy Sentinel in minutes. Integrate with CI/CD. Stay ahead of threats.</p>
+<button class="px-xl py-lg bg-primary-container text-surface-container-lowest font-body-md text-body-md font-bold rounded-lg shadow-sm hover:opacity-90 hover:scale-105 transition-all flex items-center gap-sm">
+<span class="material-symbols-outlined">rocket_launch</span>
+                Start a Scan
+            </button>
+</div>
+</div>
+</section>
+</div></main></body></html>
