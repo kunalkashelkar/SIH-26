@@ -13,6 +13,10 @@ import Settings from '../pages/Settings';
 import Vulnerabilities from '../pages/Vulnerabilities';
 import VulnerabilityDetails from '../pages/VulnerabilityDetails';
 import ScanDetails from '../pages/ScanDetails';
+import Projects from '../pages/Projects';
+import Targets from '../pages/Targets';
+import Payloads from '../pages/Payloads';
+import Documentation from '../pages/Documentation';
 import AppLayout from '../components/layout/AppLayout';
 
 export default function AppRoutes() {
@@ -26,7 +30,7 @@ export default function AppRoutes() {
         <Route path="/dashboard" element={<Dashboard />} />
         
         {/* Scans */}
-        <Route path="/scans" element={<Dashboard />} /> {/* Using dashboard as scan list for now */}
+        <Route path="/scans" element={<LiveScan />} />
         <Route path="/scans/new" element={<NewScan />} />
         <Route path="/scans/:scanId" element={<ScanDetails />} />
         <Route path="/scans/:scanId/progress" element={<LiveScan />} />
@@ -37,17 +41,17 @@ export default function AppRoutes() {
         {/* Global Nav */}
         <Route path="/attack-surface" element={<AttackSurface />} />
         <Route path="/findings" element={<Findings />} />
-        <Route path="/fuzzing" element={<Fuzzing />} />
+        <Route path="/fuzzing" element={<FuzzingActivity />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/vulnerabilities" element={<Vulnerabilities />} />
         <Route path="/vulnerabilities/:id" element={<VulnerabilityDetails />} />
         
-        {/* Placeholders for sidebar links */}
-        <Route path="/projects" element={<Dashboard />} />
-        <Route path="/targets" element={<Dashboard />} />
-        <Route path="/payloads" element={<Dashboard />} />
-        <Route path="/documentation" element={<Dashboard />} />
+        {/* Sidebar Nav */}
+        <Route path="/projects" element={<Projects />} />
+        <Route path="/targets" element={<Targets />} />
+        <Route path="/payloads" element={<Payloads />} />
+        <Route path="/documentation" element={<Documentation />} />
       </Route>
     </Routes>
   );

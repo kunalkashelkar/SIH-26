@@ -18,11 +18,7 @@ export default function Topbar() {
       </div>
       
       <div className="topbar-actions">
-        <button className="btn-primary-small" onClick={() => navigate('/scans/new')}>
-          <span className="material-symbols-outlined icon-small">add</span>
-          New Scan
-        </button>
-        
+
         <button className="btn-icon">
           <span className="material-symbols-outlined">notifications</span>
         </button>

@@ -59,9 +59,6 @@ export default function Sidebar() {
       </nav>
       
       <div className="sidebar-footer">
-        <button className="nav-item">
-          <span className="material-symbols-outlined icon-small">dark_mode</span>Theme Toggle
-        </button>
         <button className="nav-item nav-item-danger" onClick={() => navigate('/login')}>
           <span className="material-symbols-outlined icon-small">logout</span>Logout
         </button>
