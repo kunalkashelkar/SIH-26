@@ -57,6 +57,36 @@ export interface EndpointPriorityResult {
   reasons: string[];
 }
 
+export interface EvidenceItem {
+  id: string;
+  evidence_type: string;
+  baseline_summary?: string;
+  test_summary?: string;
+  analysis?: string;
+  confidence?: string;
+}
+
+export interface FindingItem {
+  id: string;
+  scan_id: string;
+  endpoint_id?: string;
+  parameter_id?: string;
+  endpoint_path?: string;
+  parameter_name?: string;
+  vulnerability_type: string;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  confidence: string;
+  priority?: 'P1' | 'P2' | 'P3' | 'P4';
+  status: string;
+  description?: string;
+  impact?: string;
+  cwe?: string;
+  owasp_category?: string;
+  remediation?: string;
+  created_at?: string;
+  evidence: EvidenceItem[];
+}
+
 export const scanService = {
   createScan: async (data: ScanRequest): Promise<ScanResponse> => {
     const response = await fetch(`${API_BASE}/scans`, {
@@ -94,5 +124,59 @@ export const scanService = {
       throw new Error(`Failed to get scan priorities: ${response.statusText}`);
     }
     return response.json();
+  },
+
+  getScanFindings: async (scanId: string): Promise<FindingItem[]> => {
+    const response = await fetch(`${API_BASE}/scans/${scanId}/findings`);
+    if (!response.ok) {
+      throw new Error(`Failed to get scan findings: ${response.statusText}`);
+    }
+    return response.json();
+  },
+
+  getFindingById: async (findingId: string): Promise<FindingItem> => {
+    const response = await fetch(`${API_BASE}/findings/${findingId}`);
+    if (!response.ok) {
+      throw new Error(`Failed to get finding: ${response.statusText}`);
+    }
+    return response.json();
+  },
+
+  retestFinding: async (findingId: string): Promise<{ finding_id: string; status: string; retest_id: string; result: string; executed_at: string }> => {
+    const response = await fetch(`${API_BASE}/findings/${findingId}/retest`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to retest finding: ${response.statusText}`);
+    }
+    return response.json();
+  },
+
+  getFindingRetests: async (findingId: string): Promise<Array<{ id: string; finding_id: string; status: string; result: string; executed_at: string }>> => {
+    const response = await fetch(`${API_BASE}/findings/${findingId}/retests`);
+    if (!response.ok) {
+      throw new Error(`Failed to get finding retests: ${response.statusText}`);
+    }
+    return response.json();
+  },
+
+  getScanStatistics: async (scanId: string): Promise<any> => {
+    const response = await fetch(`${API_BASE}/scans/${scanId}/statistics`);
+    if (!response.ok) {
+      throw new Error(`Failed to get scan statistics: ${response.statusText}`);
+    }
+    return response.json();
+  },
+
+  getScanJsonReport: async (scanId: string): Promise<any> => {
+    const response = await fetch(`${API_BASE}/scans/${scanId}/report/json`);
+    if (!response.ok) {
+      throw new Error(`Failed to get JSON report: ${response.statusText}`);
+    }
+    return response.json();
+  },
+
+  downloadPdfReportUrl: (scanId: string): string => {
+    return `${API_BASE}/scans/${scanId}/report/pdf`;
   }
 };

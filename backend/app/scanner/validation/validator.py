@@ -77,55 +77,49 @@ class EvidenceValidator:
                 pass
 
             # 4. Compute Confidence and Verdict
-            verdict, confidence, reason = ConfidenceCalculator.calculate(
+            verdict, raw_confidence, reason = ConfidenceCalculator.calculate(
                 anomaly=anomaly,
                 validation_reproduced=reproduced,
                 false_positive_probe_passed=control_passed
             )
 
-            logger.info(f"Validation for {anomaly.parameter_name} ({anomaly.category}): {verdict.value} (Confidence: {confidence.value})")
+            logger.info(f"Validation for {anomaly.parameter_name} ({anomaly.category}): {verdict.value} (Confidence: {raw_confidence.value})")
 
             # 5. Persist CONFIRMED findings to PostgreSQL / SQLite
             if verdict == ValidationVerdict.CONFIRMED:
                 finding_id = str(uuid.uuid4())
                 
-                # Metadata mappings
-                owasp_map = {
-                    "SQLI": "A03:2021-Injection",
-                    "XSS": "A03:2021-Injection",
-                    "IDOR": "A01:2021-Broken Access Control",
-                    "AUTH_BYPASS": "A07:2021-Identification and Authentication Failures",
-                    "OPEN_REDIRECT": "A01:2021-Broken Access Control"
-                }
-                cwe_map = {
-                    "SQLI": "CWE-89",
-                    "XSS": "CWE-79",
-                    "IDOR": "CWE-639",
-                    "AUTH_BYPASS": "CWE-287",
-                    "OPEN_REDIRECT": "CWE-601"
-                }
-                severity_map = {
-                    "SQLI": "HIGH",
-                    "XSS": "MEDIUM",
-                    "IDOR": "HIGH",
-                    "AUTH_BYPASS": "CRITICAL",
-                    "OPEN_REDIRECT": "LOW"
-                }
+                from app.scanner.risk.classifier import RiskClassifier
+                distinct_indicator = bool(
+                    anomaly.differential and (
+                        anomaly.differential.sql_error_detected or anomaly.differential.payload_reflected
+                    )
+                )
+
+                evaluated = RiskClassifier.evaluate(
+                    category=anomaly.category,
+                    endpoint=endpoint,
+                    parameter_name=anomaly.parameter_name,
+                    validation_reproduced=reproduced,
+                    distinct_error_reflection=distinct_indicator,
+                    raw_confidence_level=raw_confidence.value
+                )
 
                 finding = Finding(
                     id=finding_id,
                     scan_id=self.scan_id,
                     endpoint_id=endpoint.id,
                     parameter_id=anomaly.parameter_id,
-                    vulnerability_type=f"{anomaly.category} Vulnerability",
-                    severity=severity_map.get(anomaly.category, "MEDIUM"),
-                    confidence=confidence.value,
+                    vulnerability_type=evaluated.vulnerability_type,
+                    severity=evaluated.severity,
+                    confidence=str(evaluated.confidence_score),
+                    priority=evaluated.priority,
                     status="open",
-                    description=f"Confirmed {anomaly.category} behavior on parameter '{anomaly.parameter_name}' at {endpoint.path}.",
-                    impact=f"Attacker could exploit this {anomaly.category} behavior to manipulate application data or context.",
-                    cwe=cwe_map.get(anomaly.category, "CWE-20"),
-                    owasp_category=owasp_map.get(anomaly.category, "A03:2021-Injection"),
-                    remediation=f"Sanitize and validate user input on parameter '{anomaly.parameter_name}', use parameterized queries or output encoding."
+                    description=evaluated.description,
+                    impact=evaluated.impact,
+                    cwe=evaluated.cwe,
+                    owasp_category=evaluated.owasp_category,
+                    remediation=evaluated.remediation
                 )
                 self.db.add(finding)
 
@@ -133,8 +127,8 @@ class EvidenceValidator:
                     finding_id=finding_id,
                     anomaly=anomaly,
                     verdict=verdict,
-                    confidence=confidence,
-                    reason=reason
+                    confidence=raw_confidence,
+                    reason=f"{reason} (CVSS: {evaluated.cvss_score}, Vector: {evaluated.cvss_vector})"
                 )
 
                 evidence = Evidence(

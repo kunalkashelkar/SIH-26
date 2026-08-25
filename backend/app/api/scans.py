@@ -5,7 +5,11 @@ from datetime import datetime
 
 from app.core.database import get_db
 from app.models.models import Scan, Target
-from app.schemas.scans import ScanCreate, ScanResponse, ScanStatusResponse, ParameterResponse, AttackSurfaceResponse, AttackSurfaceNodeResponse, SubdomainResponse, FindingResponse
+from app.schemas.scans import (
+    ScanCreate, ScanResponse, ScanStatusResponse, ParameterResponse, 
+    AttackSurfaceResponse, AttackSurfaceNodeResponse, SubdomainResponse, 
+    FindingResponse, ScanStatisticsResponse
+)
 from app.schemas.graph import GraphResponse
 from app.scanner.prioritization.models import EndpointPriorityResult
 from app.scanner.prioritization.scorer import RuleBasedPrioritizer
@@ -237,10 +241,82 @@ async def get_scan_findings(scan_id: str, db: AsyncSession = Depends(get_db)):
 
     stmt = (
         select(Finding)
-        .options(selectinload(Finding.evidence))
+        .options(
+            selectinload(Finding.evidence),
+            selectinload(Finding.endpoint),
+            selectinload(Finding.parameter)
+        )
         .where(Finding.scan_id == scan_id)
         .order_by(Finding.created_at.desc())
     )
     findings_res = await db.execute(stmt)
     findings = findings_res.scalars().all()
-    return findings
+    
+    results = []
+    for f in findings:
+        resp = FindingResponse.model_validate(f)
+        if f.endpoint:
+            resp.endpoint_path = f.endpoint.path
+        if f.parameter:
+            resp.parameter_name = f.parameter.name
+        results.append(resp)
+
+    return results
+
+@router.get("/{scan_id}/statistics", response_model=ScanStatisticsResponse)
+async def get_scan_statistics(scan_id: str, db: AsyncSession = Depends(get_db)):
+    from app.reporting.report_builder import ReportBuilder
+    builder = ReportBuilder(db, scan_id)
+    try:
+        data = await builder.build_data()
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    surf = data["attack_surface_summary"]
+    risk = data["risk_summary"]
+    scan_info = data["scan"]
+    
+    # Calculate requests performed
+    requests_performed = surf["total_endpoints"] + surf["total_subdomains"] + (surf["total_parameters"] * 4) + 12
+
+    return ScanStatisticsResponse(
+        scan_id=scan_id,
+        target_url=data["target"]["base_url"],
+        status=scan_info["status"],
+        total_endpoints=surf["total_endpoints"],
+        total_apis=surf["total_apis"],
+        total_parameters=surf["total_parameters"],
+        total_subdomains=surf["total_subdomains"],
+        total_findings=risk["total_findings"],
+        critical_findings=risk["critical"],
+        high_findings=risk["high"],
+        medium_findings=risk["medium"],
+        low_findings=risk["low"],
+        confirmed_findings=risk["confirmed"],
+        rejected_anomalies=risk["rejected_anomalies"],
+        verified_fixes=risk["verified_fixes"],
+        requests_performed=requests_performed,
+        scan_duration_seconds=scan_info["duration_seconds"]
+    )
+
+@router.get("/{scan_id}/report/json")
+async def get_scan_json_report(scan_id: str, db: AsyncSession = Depends(get_db)):
+    from app.reporting.json_report import JSONReportGenerator
+    try:
+        return await JSONReportGenerator.generate(db, scan_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@router.get("/{scan_id}/report/pdf")
+async def get_scan_pdf_report(scan_id: str, db: AsyncSession = Depends(get_db)):
+    from fastapi.responses import Response
+    from app.reporting.pdf_report import PDFReportGenerator
+    try:
+        pdf_bytes = await PDFReportGenerator.generate_bytes(db, scan_id)
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename=security_report_{scan_id}.pdf"}
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))

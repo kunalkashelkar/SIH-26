@@ -72,6 +72,7 @@ class Finding(Base):
     vulnerability_type = Column(String, nullable=False, index=True)
     severity = Column(String, nullable=False, index=True)
     confidence = Column(String)
+    priority = Column(String, default="P2", index=True)
     status = Column(String, default="open", index=True)
     description = Column(Text)
     impact = Column(Text)

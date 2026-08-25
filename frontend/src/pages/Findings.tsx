@@ -1,33 +1,51 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { scanService, FindingItem } from '../services/api';
 import './Findings.css';
-
-interface Finding {
-  id: string;
-  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
-  name: string;
-  endpoint: string;
-  confidence: number;
-  status: 'Open' | 'Verified' | 'Closed';
-}
-
-const mockFindings: Finding[] = [
-  { id: '1', severity: 'CRITICAL', name: 'SQL Injection', endpoint: '/api/users', confidence: 96, status: 'Open' },
-  { id: '2', severity: 'HIGH', name: 'IDOR', endpoint: '/orders', confidence: 91, status: 'Open' },
-  { id: '3', severity: 'HIGH', name: 'XSS', endpoint: '/search', confidence: 87, status: 'Verified' },
-  { id: '4', severity: 'MEDIUM', name: 'CORS Misconfiguration', endpoint: '/api', confidence: 82, status: 'Open' },
-  { id: '5', severity: 'LOW', name: 'Verbose Error Messages', endpoint: '/auth/login', confidence: 45, status: 'Closed' },
-];
 
 export default function Findings() {
   const navigate = useNavigate();
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(['1', '2', '3', '4']));
+  const [findings, setFindings] = useState<FindingItem[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState<boolean>(true);
+  const [filterText, setFilterText] = useState<string>('');
+
+  useEffect(() => {
+    async function loadFindings() {
+      try {
+        setLoading(true);
+        // Try fetching active scan if saved
+        const activeScanId = localStorage.getItem('last_active_scan_id');
+        if (activeScanId) {
+          const data = await scanService.getScanFindings(activeScanId);
+          if (data && data.length > 0) {
+            setFindings(data);
+            setSelectedIds(new Set(data.map(f => f.id)));
+            setLoading(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("Could not fetch real findings, displaying fallback:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadFindings();
+  }, []);
+
+  const displayedFindings = findings.filter(f => 
+    !filterText || 
+    f.vulnerability_type.toLowerCase().includes(filterText.toLowerCase()) ||
+    (f.endpoint_path || '').toLowerCase().includes(filterText.toLowerCase()) ||
+    (f.severity || '').toLowerCase().includes(filterText.toLowerCase())
+  );
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === mockFindings.length) {
+    if (selectedIds.size === displayedFindings.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(mockFindings.map(f => f.id)));
+      setSelectedIds(new Set(displayedFindings.map(f => f.id)));
     }
   };
 
@@ -48,18 +66,32 @@ export default function Findings() {
       'MEDIUM': 'sev-medium',
       'LOW': 'sev-low'
     };
-    return <span className={`severity-badge ${classes[sev as keyof typeof classes]}`}>{sev}</span>;
+    return <span className={`severity-badge ${classes[sev as keyof typeof classes] || 'sev-medium'}`}>{sev}</span>;
+  };
+
+  const renderPriority = (priority?: string) => {
+    return <span className="priority-tag" style={{
+      fontSize: '11px',
+      fontWeight: 600,
+      padding: '2px 6px',
+      borderRadius: '4px',
+      background: 'rgba(255, 255, 255, 0.08)',
+      color: 'var(--color-primary)',
+      marginLeft: '6px'
+    }}>{priority || 'P2'}</span>;
   };
 
   const renderStatus = (status: string) => {
-    const dotClasses = {
+    const dotClasses: Record<string, string> = {
+      'open': 'dot-open',
       'Open': 'dot-open',
       'Verified': 'dot-verified',
+      'closed': 'dot-closed',
       'Closed': 'dot-closed'
     };
     return (
       <span className="status-badge">
-        <span className={`status-dot ${dotClasses[status as keyof typeof dotClasses]}`}></span> {status}
+        <span className={`status-dot ${dotClasses[status] || 'dot-open'}`}></span> {status.toUpperCase()}
       </span>
     );
   };
@@ -69,7 +101,7 @@ export default function Findings() {
       <div className="findings-header">
         <div>
           <h1 className="findings-title">Findings</h1>
-          <p className="findings-subtitle">47 vulnerabilities detected across your targets.</p>
+          <p className="findings-subtitle">{displayedFindings.length} verified vulnerabilities detected across your targets.</p>
         </div>
         <div className="findings-actions">
           <button className="btn-secondary">
@@ -88,7 +120,13 @@ export default function Findings() {
           <div className="toolbar-left">
             <div className="search-input-wrapper">
               <span className="material-symbols-outlined search-icon">search</span>
-              <input type="text" className="search-input" placeholder="Search vulnerabilities..." />
+              <input 
+                type="text" 
+                className="search-input" 
+                placeholder="Search vulnerabilities, endpoints, severities..." 
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+              />
             </div>
             <button className="btn-filter">
               <span className="material-symbols-outlined" style={{fontSize: '16px'}}>filter_list</span> Filter
@@ -107,11 +145,11 @@ export default function Findings() {
                 <th style={{width: '48px', textAlign: 'center'}}>
                   <input 
                     type="checkbox" 
-                    checked={selectedIds.size === mockFindings.length && mockFindings.length > 0} 
+                    checked={selectedIds.size === displayedFindings.length && displayedFindings.length > 0} 
                     onChange={toggleSelectAll} 
                   />
                 </th>
-                <th>Severity</th>
+                <th>Severity & Priority</th>
                 <th style={{width: '33%'}}>Vulnerability Name</th>
                 <th>Endpoint</th>
                 <th style={{textAlign: 'right'}}>Confidence</th>
@@ -120,32 +158,49 @@ export default function Findings() {
               </tr>
             </thead>
             <tbody>
-              {mockFindings.map((finding) => {
-                const isSelected = selectedIds.has(finding.id);
-                return (
-                  <tr key={finding.id} className={isSelected ? 'selected-row' : ''} onClick={() => navigate(`/vulnerabilities/${finding.id}`)} style={{cursor: 'pointer'}}>
-                    <td style={{textAlign: 'center'}} onClick={(e) => { e.stopPropagation(); toggleSelect(finding.id); }}>
-                      <input 
-                        type="checkbox" 
-                        checked={isSelected} 
-                        onChange={() => {}} 
-                      />
-                    </td>
-                    <td>{renderSeverity(finding.severity)}</td>
-                    <td className="vuln-name">{finding.name}</td>
-                    <td>
-                      <code className="endpoint-code">{finding.endpoint}</code>
-                    </td>
-                    <td style={{textAlign: 'right', color: 'var(--color-on-surface-variant)'}}>{finding.confidence}%</td>
-                    <td>{renderStatus(finding.status)}</td>
-                    <td style={{textAlign: 'right'}}>
-                      <button className="action-btn" onClick={(e) => { e.stopPropagation(); }}>
-                        <span className="material-symbols-outlined" style={{fontSize: '18px'}}>more_vert</span>
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+              {loading ? (
+                <tr>
+                  <td colSpan={7} style={{textAlign: 'center', padding: '32px', color: 'var(--color-on-surface-variant)'}}>
+                    Loading confirmed findings...
+                  </td>
+                </tr>
+              ) : displayedFindings.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{textAlign: 'center', padding: '32px', color: 'var(--color-on-surface-variant)'}}>
+                    No findings detected yet. Run a scan to discover and validate vulnerabilities.
+                  </td>
+                </tr>
+              ) : (
+                displayedFindings.map((finding) => {
+                  const isSelected = selectedIds.has(finding.id);
+                  return (
+                    <tr key={finding.id} className={isSelected ? 'selected-row' : ''} onClick={() => navigate(`/vulnerabilities/${finding.id}`)} style={{cursor: 'pointer'}}>
+                      <td style={{textAlign: 'center'}} onClick={(e) => { e.stopPropagation(); toggleSelect(finding.id); }}>
+                        <input 
+                          type="checkbox" 
+                          checked={isSelected} 
+                          onChange={() => {}} 
+                        />
+                      </td>
+                      <td>
+                        {renderSeverity(finding.severity)}
+                        {renderPriority(finding.priority)}
+                      </td>
+                      <td className="vuln-name">{finding.vulnerability_type}</td>
+                      <td>
+                        <code className="endpoint-code">{finding.endpoint_path || '/'}</code>
+                      </td>
+                      <td style={{textAlign: 'right', color: 'var(--color-on-surface-variant)'}}>{finding.confidence}%</td>
+                      <td>{renderStatus(finding.status)}</td>
+                      <td style={{textAlign: 'right'}}>
+                        <button className="action-btn" onClick={(e) => { e.stopPropagation(); }}>
+                          <span className="material-symbols-outlined" style={{fontSize: '18px'}}>more_vert</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

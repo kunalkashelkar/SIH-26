@@ -6,6 +6,7 @@ from app.core.config import settings
 from app.api.health import router as health_router
 from app.api.scans import router as scans_router
 from app.api.graph import router as graph_router
+from app.api.findings import router as findings_router
 # Other routers will be imported here later
 
 # Setup logging
@@ -54,6 +55,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 app.include_router(health_router, prefix="/api", tags=["Health"])
 app.include_router(scans_router, prefix="/api/scans", tags=["Scans"])
 app.include_router(graph_router, prefix="/api/scans", tags=["Graph"])
+app.include_router(findings_router, prefix="/api/findings", tags=["Findings"])
 
 if __name__ == "__main__":
     import uvicorn

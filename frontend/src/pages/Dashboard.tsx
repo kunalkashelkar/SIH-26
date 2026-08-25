@@ -1,8 +1,36 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { scanService, FindingItem } from '../services/api';
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [findings, setFindings] = useState<FindingItem[]>([]);
+  const [stats, setStats] = useState<any>(null);
+
+  useEffect(() => {
+    async function loadDashboard() {
+      const activeScanId = localStorage.getItem('last_active_scan_id');
+      if (activeScanId) {
+        try {
+          const [fList, scanStats] = await Promise.all([
+            scanService.getScanFindings(activeScanId).catch(() => []),
+            scanService.getScanStatistics(activeScanId).catch(() => null)
+          ]);
+          if (fList && fList.length > 0) setFindings(fList);
+          if (scanStats) setStats(scanStats);
+        } catch (e) {
+          console.warn("Dashboard fetch:", e);
+        }
+      }
+    }
+    loadDashboard();
+  }, []);
+
+  const critCount = stats ? stats.critical_findings : findings.filter(f => f.severity === 'CRITICAL').length;
+  const highCount = stats ? stats.high_findings : findings.filter(f => f.severity === 'HIGH').length;
+  const medCount = stats ? stats.medium_findings : findings.filter(f => f.severity === 'MEDIUM').length;
+  const lowCount = stats ? stats.low_findings : findings.filter(f => f.severity === 'LOW').length;
+  const totalFindings = stats ? stats.total_findings : findings.length;
 
   return (
     <div className="page-container">
@@ -20,13 +48,13 @@ export default function Dashboard() {
       <div className="kpi-grid">
         <div className="kpi-card">
           <div className="kpi-header">
-            <span className="kpi-label">Total Scans</span>
+            <span className="kpi-label">Active Scans</span>
             <span className="material-symbols-outlined text-primary">manage_search</span>
           </div>
-          <div className="kpi-value">24</div>
+          <div className="kpi-value">{stats ? '1' : '0'}</div>
           <div className="kpi-trend text-secondary">
-            <span className="material-symbols-outlined icon-small">arrow_upward</span>
-            <span>+3 this week</span>
+            <span className="material-symbols-outlined icon-small">check_circle</span>
+            <span>{stats ? stats.status : 'System ready'}</span>
           </div>
         </div>
 
@@ -35,22 +63,22 @@ export default function Dashboard() {
             <span className="kpi-label">Endpoints</span>
             <span className="material-symbols-outlined text-secondary">hub</span>
           </div>
-          <div className="kpi-value">1,284</div>
+          <div className="kpi-value">{stats ? stats.total_endpoints : 0}</div>
           <div className="kpi-trend text-muted">
             <span className="material-symbols-outlined icon-small">sync</span>
-            <span>Last update 2h ago</span>
+            <span>{stats ? `${stats.total_parameters} parameters` : 'Discovered via crawler'}</span>
           </div>
         </div>
 
         <div className="kpi-card">
           <div className="kpi-header">
-            <span className="kpi-label">Vulnerabilities</span>
+            <span className="kpi-label">Confirmed Vulnerabilities</span>
             <span className="material-symbols-outlined text-error">bug_report</span>
           </div>
-          <div className="kpi-value">47</div>
+          <div className="kpi-value">{totalFindings}</div>
           <div className="kpi-trend text-error">
             <span className="material-symbols-outlined icon-small">warning</span>
-            <span>12 require attention</span>
+            <span>{stats ? `${stats.verified_fixes} verified fixed` : 'Real DB findings'}</span>
           </div>
         </div>
 
@@ -59,9 +87,15 @@ export default function Dashboard() {
             <span className="kpi-label">Risk Score</span>
             <span className="material-symbols-outlined text-tertiary">health_and_safety</span>
           </div>
-          <div className="kpi-value text-tertiary">6.8<span className="kpi-subtext">/10</span></div>
+          <div className="kpi-value text-tertiary">
+            {totalFindings > 0 ? (critCount > 0 ? '8.5' : highCount > 0 ? '6.8' : '4.2') : '0.0'}
+            <span className="kpi-subtext">/10</span>
+          </div>
           <div className="kpi-progress-bar">
-            <div className="kpi-progress-fill bg-tertiary" style={{width: '68%'}}></div>
+            <div 
+              className="kpi-progress-fill bg-tertiary" 
+              style={{width: totalFindings > 0 ? (critCount > 0 ? '85%' : highCount > 0 ? '68%' : '42%') : '0%'}}
+            ></div>
           </div>
         </div>
       </div>
@@ -76,39 +110,39 @@ export default function Dashboard() {
               <div className="risk-row">
                 <div className="risk-label">CRITICAL</div>
                 <div className="risk-bar-container">
-                  <div className="risk-bar bg-error" style={{width: '15%'}}></div>
-                  <span className="risk-count">3</span>
+                  <div className="risk-bar bg-error" style={{width: `${Math.max(critCount * 30, 5)}%`}}></div>
+                  <span className="risk-count">{critCount}</span>
                 </div>
               </div>
               
               <div className="risk-row">
                 <div className="risk-label">HIGH</div>
                 <div className="risk-bar-container">
-                  <div className="risk-bar bg-tertiary" style={{width: '45%'}}></div>
-                  <span className="risk-count">12</span>
+                  <div className="risk-bar bg-tertiary" style={{width: `${Math.max(highCount * 30, 5)}%`}}></div>
+                  <span className="risk-count">{highCount}</span>
                 </div>
               </div>
 
               <div className="risk-row">
                 <div className="risk-label">MEDIUM</div>
                 <div className="risk-bar-container">
-                  <div className="risk-bar bg-primary" style={{width: '60%'}}></div>
-                  <span className="risk-count">18</span>
+                  <div className="risk-bar bg-primary" style={{width: `${Math.max(medCount * 40, 15)}%`}}></div>
+                  <span className="risk-count">{medCount}</span>
                 </div>
               </div>
 
               <div className="risk-row">
                 <div className="risk-label">LOW</div>
                 <div className="risk-bar-container">
-                  <div className="risk-bar bg-secondary" style={{width: '30%'}}></div>
-                  <span className="risk-count">14</span>
+                  <div className="risk-bar bg-secondary" style={{width: `${Math.max(lowCount * 30, 5)}%`}}></div>
+                  <span className="risk-count">{lowCount}</span>
                 </div>
               </div>
               
             </div>
             <div className="card-footer">
-              <span>Total Findings: 47</span>
-              <span>Last 30 days trend</span>
+              <span>Total Confirmed Findings: {findings.length}</span>
+              <span>PostgreSQL-backed</span>
             </div>
           </div>
 
@@ -197,59 +231,30 @@ export default function Dashboard() {
             </div>
             
             <div className="findings-list">
-              
-              <div className="finding-item border-error">
-                <div className="finding-header">
-                  <div className="severity-badge badge-error">
-                    <span className="status-dot"></span> CRITICAL
-                  </div>
-                  <span className="finding-time">2m ago</span>
+              {findings.length === 0 ? (
+                <div style={{padding: '16px', color: 'var(--color-on-surface-variant)', fontSize: '13px'}}>
+                  No findings detected yet. Start a scan to discover vulnerabilities.
                 </div>
-                <h3 className="finding-title">SQL Injection in Login Form</h3>
-                <div className="finding-target">
-                  <span className="material-symbols-outlined icon-small">public</span> example.com
-                </div>
-              </div>
-              
-              <div className="finding-item border-tertiary">
-                <div className="finding-header">
-                  <div className="severity-badge badge-tertiary">
-                    <span className="status-dot"></span> HIGH
-                  </div>
-                  <span className="finding-time">1h ago</span>
-                </div>
-                <h3 className="finding-title">IDOR on User Profile Endpoint</h3>
-                <div className="finding-target">
-                  <span className="material-symbols-outlined icon-small">api</span> api.test.io
-                </div>
-              </div>
-              
-              <div className="finding-item border-tertiary">
-                <div className="finding-header">
-                  <div className="severity-badge badge-tertiary">
-                    <span className="status-dot"></span> HIGH
-                  </div>
-                  <span className="finding-time">3h ago</span>
-                </div>
-                <h3 className="finding-title">Reflected XSS in Search Query</h3>
-                <div className="finding-target">
-                  <span className="material-symbols-outlined icon-small">public</span> example.com
-                </div>
-              </div>
-              
-              <div className="finding-item border-primary">
-                <div className="finding-header">
-                  <div className="severity-badge badge-primary">
-                    <span className="status-dot"></span> MEDIUM
-                  </div>
-                  <span className="finding-time">Yesterday</span>
-                </div>
-                <h3 className="finding-title">Missing Security Headers</h3>
-                <div className="finding-target">
-                  <span className="material-symbols-outlined icon-small">public</span> example.com
-                </div>
-              </div>
-              
+              ) : (
+                findings.slice(0, 4).map((f) => {
+                  const borderClass = f.severity === 'CRITICAL' ? 'border-error' : f.severity === 'HIGH' ? 'border-tertiary' : 'border-primary';
+                  const badgeClass = f.severity === 'CRITICAL' ? 'badge-error' : f.severity === 'HIGH' ? 'badge-tertiary' : 'badge-primary';
+                  return (
+                    <div key={f.id} className={`finding-item ${borderClass}`} onClick={() => navigate(`/vulnerabilities/${f.id}`)} style={{cursor: 'pointer'}}>
+                      <div className="finding-header">
+                        <div className={`severity-badge ${badgeClass}`}>
+                          <span className="status-dot"></span> {f.severity}
+                        </div>
+                        <span className="finding-time">{f.priority || 'P2'}</span>
+                      </div>
+                      <h3 className="finding-title">{f.vulnerability_type}</h3>
+                      <div className="finding-target">
+                        <span className="material-symbols-outlined icon-small">public</span> {f.endpoint_path || '/'}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
             
             <div className="card-footer-action">

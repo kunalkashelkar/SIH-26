@@ -69,9 +69,12 @@ class FindingResponse(BaseModel):
     scan_id: str
     endpoint_id: Optional[str] = None
     parameter_id: Optional[str] = None
+    endpoint_path: Optional[str] = None
+    parameter_name: Optional[str] = None
     vulnerability_type: str
     severity: str
     confidence: Optional[str] = None
+    priority: Optional[str] = "P2"
     status: str
     description: Optional[str] = None
     impact: Optional[str] = None
@@ -80,5 +83,33 @@ class FindingResponse(BaseModel):
     remediation: Optional[str] = None
     created_at: Optional[datetime] = None
     evidence: list[EvidenceResponse] = []
+    model_config = ConfigDict(from_attributes=True)
+
+class RetestResponse(BaseModel):
+    id: str
+    finding_id: str
+    status: str
+    result: Optional[str] = None
+    executed_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class ScanStatisticsResponse(BaseModel):
+    scan_id: str
+    target_url: str
+    status: str
+    total_endpoints: int
+    total_apis: int
+    total_parameters: int
+    total_subdomains: int
+    total_findings: int
+    critical_findings: int
+    high_findings: int
+    medium_findings: int
+    low_findings: int
+    confirmed_findings: int
+    rejected_anomalies: int
+    verified_fixes: int
+    requests_performed: int
+    scan_duration_seconds: int
     model_config = ConfigDict(from_attributes=True)
 
