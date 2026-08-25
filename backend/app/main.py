@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.api.health import router as health_router
+from app.api.scans import router as scans_router
 # Other routers will be imported here later
 
 # Setup logging
@@ -39,6 +40,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Mount routers
 app.include_router(health_router, prefix="/api", tags=["Health"])
+app.include_router(scans_router, prefix="/api/scans", tags=["Scans"])
 
 if __name__ == "__main__":
     import uvicorn

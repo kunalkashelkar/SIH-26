@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { scanService } from '../services/api';
 import './LiveScan.css';
 
 export default function LiveScan() {
@@ -9,6 +10,7 @@ export default function LiveScan() {
   const [logs, setLogs] = useState<string[]>(["[INFO] Waiting for scan to initialize..."]);
   const [progress, setProgress] = useState(0);
   const [scanStatus, setScanStatus] = useState("Initializing");
+  const [currentStage, setCurrentStage] = useState("Initialization");
   const [target, setTarget] = useState("Loading...");
   
   const terminalEndRef = useRef<HTMLDivElement>(null);
@@ -18,19 +20,21 @@ export default function LiveScan() {
       if (!scanId || scanId === 'demo') return;
       
       try {
-        const res = await fetch(`/api/scans/${scanId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setSeconds(data.elapsed);
-          setScanStatus(data.status);
-          setProgress(data.progress);
-          setTarget(data.target);
-          if (data.logs && data.logs.length > 0) {
-            setLogs(data.logs);
-          }
-          if (data.status === "Completed" || data.status === "Cancelled") {
-            clearInterval(pollInterval);
-          }
+        const data = await scanService.getScanStatus(scanId);
+        setScanStatus(data.status);
+        setProgress(data.progress);
+        setCurrentStage(data.current_stage);
+        setTarget(data.target_url);
+        
+        // Mock elapsed calculation if started_at exists
+        if (data.started_at) {
+            const start = new Date(data.started_at).getTime();
+            const end = data.completed_at ? new Date(data.completed_at).getTime() : Date.now();
+            setSeconds(Math.floor((end - start) / 1000));
+        }
+
+        if (data.status === "Complete" || data.status === "Cancelled") {
+          clearInterval(pollInterval);
         }
       } catch (err) {
         console.error("Failed to fetch scan status", err);

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { scanService } from '../services/api';
 import './NewScan.css';
 
 export default function NewScan() {
@@ -7,28 +8,20 @@ export default function NewScan() {
   const [targetUrl, setTargetUrl] = useState("https://example.com");
   const [crawlDepth, setCrawlDepth] = useState(3);
   const [reqLimit, setReqLimit] = useState(10000);
+  const [scanMode, setScanMode] = useState("Standard");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const response = await fetch('/api/scans', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          target_url: targetUrl,
-          request_limit: reqLimit,
-          crawl_depth: crawlDepth
-        })
+      const data = await scanService.createScan({
+        target_url: targetUrl,
+        scan_mode: scanMode,
+        max_depth: crawlDepth,
+        max_requests: reqLimit
       });
-      if (response.ok) {
-        const data = await response.json();
-        navigate(`/scans/${data.scan_id}/progress`);
-      } else {
-        console.error("Failed to start scan");
-        setIsSubmitting(false);
-      }
+      navigate(`/scans/${data.scan_id}/progress`);
     } catch (error) {
       console.error(error);
       setIsSubmitting(false);
@@ -266,8 +259,8 @@ export default function NewScan() {
             </div>
             <div className="section-body" style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
               
-              <label className="profile-card">
-                <input type="radio" name="profile" style={{marginTop: '4px', accentColor: 'var(--color-primary-container)'}} />
+              <label className={`profile-card ${scanMode === 'Passive' ? 'selected' : ''}`}>
+                <input type="radio" name="profile" checked={scanMode === 'Passive'} onChange={() => setScanMode('Passive')} style={{marginTop: '4px', accentColor: 'var(--color-primary-container)'}} />
                 <div style={{flex: 1}}>
                   <div className="profile-title">Passive</div>
                   <div style={{fontSize: '12px'}} className="text-muted">Safe. Observes traffic without injecting payloads.</div>
@@ -275,8 +268,8 @@ export default function NewScan() {
                 </div>
               </label>
 
-              <label className="profile-card selected">
-                <input type="radio" name="profile" defaultChecked style={{marginTop: '4px', accentColor: 'var(--color-primary-container)'}} />
+              <label className={`profile-card ${scanMode === 'Standard' ? 'selected' : ''}`}>
+                <input type="radio" name="profile" checked={scanMode === 'Standard'} onChange={() => setScanMode('Standard')} style={{marginTop: '4px', accentColor: 'var(--color-primary-container)'}} />
                 <div style={{flex: 1}}>
                   <div className="profile-title">Standard</div>
                   <div style={{fontSize: '12px'}} className="text-muted">Balanced. Injects common payloads, respects rate limits.</div>
@@ -287,8 +280,8 @@ export default function NewScan() {
                 </div>
               </label>
 
-              <label className="profile-card">
-                <input type="radio" name="profile" style={{marginTop: '4px', accentColor: 'var(--color-error)'}} />
+              <label className={`profile-card ${scanMode === 'Aggressive' ? 'selected' : ''}`}>
+                <input type="radio" name="profile" checked={scanMode === 'Aggressive'} onChange={() => setScanMode('Aggressive')} style={{marginTop: '4px', accentColor: 'var(--color-error)'}} />
                 <div style={{flex: 1}}>
                   <div className="profile-title">Aggressive</div>
                   <div style={{fontSize: '12px'}} className="text-muted">Loud. High concurrency, exhaustive fuzzing, ignores limits.</div>

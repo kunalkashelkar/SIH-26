@@ -8,3 +8,4 @@ aiosqlite
 pydantic-settings
 asyncpg
 psycopg2-binary
+alembic
