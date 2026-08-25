@@ -60,24 +60,45 @@ async def run_scan_lifecycle(scan_id: str, scan_req: dict, cancel_event: asyncio
                     # Use the Discovery Engine
                     from app.scanner.discovery.crawler import AsyncCrawler
                     from app.scanner.http_client import ResilientHttpClient
+                    from app.scanner.discovery.directory_discovery import DirectoryDiscoverer
+                    from app.scanner.discovery.subdomain_discovery import SubdomainDiscoverer
                     
                     max_reqs = scan_req.get("max_requests", 1000)
                     max_depth = scan_req.get("max_depth", 3)
+                    enable_sub = scan_req.get("enable_subdomain_discovery", False)
+                    enable_dir = scan_req.get("enable_directory_discovery", False)
+                    wordlist_limit = scan_req.get("wordlist_limit", 100)
+                    target_url = scan_req["target_url"]
                     
                     # Create a resilient client for the crawler
                     client = ResilientHttpClient(max_requests=max_reqs, concurrency=10, timeout=10)
                     try:
-                        crawler = AsyncCrawler(scan_id, scan_req["target_url"], db, client, max_depth=max_depth)
+                        # 1. Subdomain Discovery (Optional)
+                        if enable_sub:
+                            sub_discoverer = SubdomainDiscoverer(scan_id, target_url, db, wordlist_limit=wordlist_limit)
+                            await sub_discoverer.run(cancel_event)
+                            
+                        # 2. Directory Discovery (Optional)
+                        if enable_dir:
+                            dir_discoverer = DirectoryDiscoverer(scan_id, target_url, db, client, wordlist_limit=wordlist_limit)
+                            await dir_discoverer.run(cancel_event)
+                            
+                        # 3. Web Crawler
+                        crawler = AsyncCrawler(scan_id, target_url, db, client, max_depth=max_depth)
                         await crawler.run(cancel_event)
                     finally:
                         await client.close()
+                elif stage_name == "ATTACK_SURFACE":
+                    from app.scanner.analyzer import AttackSurfaceAnalyzer
+                    analyzer = AttackSurfaceAnalyzer(db, scan_id)
+                    await analyzer.analyze()
                 else:
                     # Mock work for other stages
                     for _ in range(5):
                         await asyncio.sleep(1) # simulate work
                         await check_cancellation(cancel_event)
 
-            # Final success state
+             # Final success state
             await update_scan_state(db, scan_id, "COMPLETED", "COMPLETED", 100)
             logger.info(f"Scan {scan_id} completed successfully.")
             

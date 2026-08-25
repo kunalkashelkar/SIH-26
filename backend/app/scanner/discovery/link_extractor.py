@@ -25,8 +25,10 @@ class LinkExtractor:
                 params = []
                 if parsed.query:
                     query_vars = urllib.parse.parse_qs(parsed.query)
-                    for k in query_vars.keys():
-                        params.append(DiscoveredParameter(name=k, location="query"))
+                    for k, v in query_vars.items():
+                        val = v[0] if v else ""
+                        inf_type = DiscoveredParameter.infer_type(val, k)
+                        params.append(DiscoveredParameter(name=k, location="query", value_type=inf_type))
                         
                 endpoints.append(DiscoveredEndpoint(
                     url=url,
@@ -50,9 +52,11 @@ class LinkExtractor:
                 # Extract inputs
                 for input_tag in form.find_all(['input', 'select', 'textarea']):
                     name = input_tag.get('name')
+                    val = input_tag.get('value', '')
                     if name:
                         location = "query" if method == "GET" else "body"
-                        params.append(DiscoveredParameter(name=name, location=location))
+                        inf_type = DiscoveredParameter.infer_type(val, name)
+                        params.append(DiscoveredParameter(name=name, location=location, value_type=inf_type))
 
                 endpoints.append(DiscoveredEndpoint(
                     url=url,

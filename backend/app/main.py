@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.api.health import router as health_router
 from app.api.scans import router as scans_router
+from app.api.graph import router as graph_router
 # Other routers will be imported here later
 
 # Setup logging
@@ -14,9 +15,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+from contextlib import asynccontextmanager
+from app.core.database import engine, Base
+import app.models.models # Ensure all models are registered
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+
 app = FastAPI(
     title="Web Fuzzer Backend",
     version="1.0.0",
+    lifespan=lifespan
 )
 
 # Configure CORS
@@ -41,6 +53,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 # Mount routers
 app.include_router(health_router, prefix="/api", tags=["Health"])
 app.include_router(scans_router, prefix="/api/scans", tags=["Scans"])
+app.include_router(graph_router, prefix="/api/scans", tags=["Graph"])
 
 if __name__ == "__main__":
     import uvicorn

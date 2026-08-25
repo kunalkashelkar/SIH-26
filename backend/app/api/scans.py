@@ -5,7 +5,10 @@ from datetime import datetime
 
 from app.core.database import get_db
 from app.models.models import Scan, Target
-from app.schemas.scans import ScanCreate, ScanResponse, ScanStatusResponse
+from app.schemas.scans import ScanCreate, ScanResponse, ScanStatusResponse, ParameterResponse, AttackSurfaceResponse, AttackSurfaceNodeResponse, SubdomainResponse
+from app.schemas.graph import GraphResponse
+from app.scanner.graph.builder import AttackSurfaceGraphBuilder
+from app.scanner.graph.serializer import GraphSerializer
 from app.scanner.manager import scan_manager
 
 router = APIRouter()
@@ -67,3 +70,108 @@ async def cancel_scan(scan_id: str):
         # For simplicity, we just return status
         return {"status": "Not running or could not cancel"}
     return {"status": "Cancellation requested"}
+
+@router.get("/{scan_id}/parameters", response_model=list[ParameterResponse])
+async def get_scan_parameters(scan_id: str, db: AsyncSession = Depends(get_db)):
+    from app.models.models import Endpoint, Parameter
+    from sqlalchemy.orm import selectinload
+    
+    # Check if scan exists
+    res = await db.execute(select(Scan).where(Scan.id == scan_id))
+    if not res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Scan not found")
+        
+    # Query parameters associated with the scan's endpoints
+    stmt = (
+        select(Parameter, Endpoint)
+        .join(Endpoint, Parameter.endpoint_id == Endpoint.id)
+        .where(Endpoint.scan_id == scan_id)
+    )
+    res = await db.execute(stmt)
+    
+    params = []
+    for param, endpoint in res.all():
+        params.append(ParameterResponse(
+            id=param.id,
+            endpoint_id=endpoint.id,
+            name=param.name,
+            location=param.location,
+            value_type=param.value_type or "unknown",
+            endpoint_method=endpoint.method,
+            endpoint_path=endpoint.path
+        ))
+        
+    return params
+
+@router.get("/{scan_id}/attack-surface", response_model=AttackSurfaceResponse)
+async def get_scan_attack_surface(scan_id: str, db: AsyncSession = Depends(get_db)):
+    from app.models.models import Endpoint
+    from sqlalchemy.orm import selectinload
+    
+    # Check if scan exists
+    res = await db.execute(select(Scan).where(Scan.id == scan_id))
+    if not res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Scan not found")
+        
+    stmt = (
+        select(Endpoint)
+        .options(selectinload(Endpoint.parameters))
+        .where(Endpoint.scan_id == scan_id)
+        .order_by(Endpoint.depth, Endpoint.path)
+    )
+    res = await db.execute(stmt)
+    endpoints = res.scalars().all()
+    
+    nodes = []
+    api_count = 0
+    for ep in endpoints:
+        if ep.is_api:
+            api_count += 1
+            
+        nodes.append(AttackSurfaceNodeResponse(
+            id=ep.id,
+            path=ep.path,
+            method=ep.method,
+            depth=ep.depth,
+            is_api=ep.is_api,
+            priority_score=ep.priority_score,
+            parameters=[p.name for p in ep.parameters]
+        ))
+        
+    return AttackSurfaceResponse(
+        nodes=nodes,
+        total_endpoints=len(endpoints),
+        total_apis=api_count
+    )
+
+@router.get("/{scan_id}/subdomains", response_model=list[SubdomainResponse])
+async def get_scan_subdomains(scan_id: str, db: AsyncSession = Depends(get_db)):
+    from app.models.models import Subdomain
+    # Check if scan exists
+    res = await db.execute(select(Scan).where(Scan.id == scan_id))
+    if not res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Scan not found")
+        
+    stmt = select(Subdomain).where(Subdomain.scan_id == scan_id).order_by(Subdomain.domain)
+    res = await db.execute(stmt)
+    subdomains = res.scalars().all()
+    
+    return [
+        SubdomainResponse(
+            id=sub.id,
+            domain=sub.domain,
+            ip_address=sub.ip_address,
+            is_alive=sub.is_alive
+        ) for sub in subdomains
+    ]
+
+@router.get("/{scan_id}/graph", response_model=GraphResponse)
+async def get_scan_graph(scan_id: str, db: AsyncSession = Depends(get_db)):
+    # Check if scan exists
+    res = await db.execute(select(Scan).where(Scan.id == scan_id))
+    if not res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Scan not found")
+        
+    builder = AttackSurfaceGraphBuilder(db, scan_id)
+    graph = await builder.build()
+    return GraphSerializer.serialize(graph)

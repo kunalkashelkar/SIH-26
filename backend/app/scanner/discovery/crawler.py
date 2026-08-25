@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import urllib.parse
 from typing import Set
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +10,7 @@ from app.scanner.http_client import ResilientHttpClient
 from app.models.models import Endpoint, Parameter
 from .robots import RobotsTxtParser
 from .link_extractor import LinkExtractor
-from .models import DiscoveredEndpoint
+from .models import DiscoveredEndpoint, DiscoveredParameter
 
 logger = logging.getLogger(__name__)
 
@@ -87,11 +88,48 @@ class AsyncCrawler:
                     if ext_ep.url not in self.visited_urls:
                         await self.queue.put(ext_ep)
 
+    async def fetch_openapi(self):
+        """Attempt to fetch OpenAPI definition to extract API parameters."""
+        paths = ["/fake-openapi.json", "/openapi.json", "/swagger.json", "/api-docs"]
+        for p in paths:
+            url = urllib.parse.urljoin(self.target_url, p)
+            resp = await self.client._request("GET", url)
+            if resp and resp.status_code == 200:
+                try:
+                    data = resp.json()
+                    if "paths" in data:
+                        logger.info(f"Discovered OpenAPI spec at {url}")
+                        for path, methods in data["paths"].items():
+                            for method, details in methods.items():
+                                params = []
+                                # query/path/header params
+                                for param in details.get("parameters", []):
+                                    name = param.get("name")
+                                    loc = param.get("in", "query")
+                                    ptype = param.get("schema", {}).get("type", "string")
+                                    if ptype == "integer": ptype = "numeric"
+                                    if name:
+                                        params.append(DiscoveredParameter(name=name, location=loc, value_type=ptype))
+                                
+                                ep_url = urllib.parse.urljoin(self.target_url, path)
+                                ep = DiscoveredEndpoint(
+                                    url=ep_url, path=path, method=method.upper(), depth=1,
+                                    discovered_from=url, is_api=True, parameters=params
+                                )
+                                await self.flush_to_db(ep)
+                        return # stop after first successful OpenAPI doc
+                except Exception as e:
+                    import traceback
+                    logger.error(f"Error parsing OpenAPI: {e}\n{traceback.format_exc()}")
+
     async def run(self, cancel_event: asyncio.Event):
         logger.info(f"Starting crawler for {self.target_url}")
         
         # 1. Fetch robots.txt
         await self.robots.fetch_and_parse(self.client)
+        
+        # 1.5 Fetch OpenAPI
+        await self.fetch_openapi()
         
         # 2. Enqueue root URL
         root_endpoint = DiscoveredEndpoint(

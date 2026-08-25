@@ -71,6 +71,24 @@ async def contact(ref: str = ""):
 async def contact_submit(message: str = ""):
     return {"status": "Message sent"}
 
+@app.get("/fake-openapi.json")
+async def openapi_mock():
+    return {
+        "openapi": "3.0.2",
+        "info": {"title": "Mock API", "version": "1.0.0"},
+        "paths": {
+            "/api/v2/products": {
+                "get": {
+                    "summary": "Get products",
+                    "parameters": [
+                        {"name": "category_id", "in": "query", "schema": {"type": "integer"}},
+                        {"name": "is_active", "in": "query", "schema": {"type": "boolean"}}
+                    ]
+                }
+            }
+        }
+    }
+
 @app.get("/api/v1/users")
 async def api_users():
     return [{"id": 1, "name": "admin"}, {"id": 2, "name": "user"}]

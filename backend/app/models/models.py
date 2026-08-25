@@ -32,6 +32,7 @@ class Scan(Base):
     target = relationship("Target", back_populates="scans")
     endpoints = relationship("Endpoint", back_populates="scan", cascade="all, delete-orphan")
     findings = relationship("Finding", back_populates="scan", cascade="all, delete-orphan")
+    subdomains = relationship("Subdomain", back_populates="scan", cascade="all, delete-orphan")
 
 class Endpoint(Base):
     __tablename__ = "endpoints"
@@ -106,3 +107,13 @@ class Retest(Base):
     executed_at = Column(DateTime(timezone=True))
     
     finding = relationship("Finding", back_populates="retests")
+
+class Subdomain(Base):
+    __tablename__ = "subdomains"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    scan_id = Column(String, ForeignKey("scans.id", ondelete="CASCADE"), nullable=False, index=True)
+    domain = Column(String, nullable=False, index=True)
+    ip_address = Column(String)
+    is_alive = Column(Boolean, default=False)
+    
+    scan = relationship("Scan", back_populates="subdomains")
