@@ -106,6 +106,28 @@ async def run_scan_lifecycle(scan_id: str, scan_req: dict, cancel_event: asyncio
                         await fuzzer.run(cancel_event)
                     finally:
                         await fuzz_client.close()
+                elif stage_name == "ANALYSIS":
+                    from app.scanner.http_client import ResilientHttpClient
+                    from app.scanner.fuzzer.engine import SCAN_FUZZ_RESULTS
+                    from app.scanner.analysis.analyzer import ResponseAnalyzer
+                    analysis_client = ResilientHttpClient(max_requests=500, concurrency=5, timeout=10)
+                    try:
+                        analyzer = ResponseAnalyzer(db, scan_id, analysis_client)
+                        fuzz_results = SCAN_FUZZ_RESULTS.get(scan_id, [])
+                        await analyzer.analyze_fuzz_results(fuzz_results)
+                    finally:
+                        await analysis_client.close()
+                elif stage_name == "VALIDATION":
+                    from app.scanner.http_client import ResilientHttpClient
+                    from app.scanner.analysis.analyzer import SCAN_ANALYSIS_REPORTS
+                    from app.scanner.validation.validator import EvidenceValidator
+                    validation_client = ResilientHttpClient(max_requests=500, concurrency=3, timeout=10)
+                    try:
+                        validator = EvidenceValidator(db, scan_id, validation_client)
+                        anomalies = SCAN_ANALYSIS_REPORTS.get(scan_id, [])
+                        await validator.validate_anomalies(anomalies, cancel_event)
+                    finally:
+                        await validation_client.close()
                 else:
                     # Mock work for other stages
                     for _ in range(5):

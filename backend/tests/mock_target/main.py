@@ -67,9 +67,17 @@ async def contact(ref: str = ""):
     </html>
     """
 
-@app.get("/contact_submit")
+@app.get("/contact_submit", response_class=HTMLResponse)
 async def contact_submit(message: str = ""):
-    return {"status": "Message sent"}
+    # Intentionally vulnerable to XSS
+    return f"""
+    <html>
+        <body>
+            <h2>Feedback Received</h2>
+            <div id="msg">{message}</div>
+        </body>
+    </html>
+    """
 
 @app.get("/fake-openapi.json")
 async def openapi_mock():

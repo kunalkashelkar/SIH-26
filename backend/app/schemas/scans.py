@@ -54,3 +54,31 @@ class AttackSurfaceResponse(BaseModel):
     total_endpoints: int
     total_apis: int
     model_config = ConfigDict(from_attributes=True)
+
+class EvidenceResponse(BaseModel):
+    id: str
+    evidence_type: str
+    baseline_summary: Optional[str] = None
+    test_summary: Optional[str] = None
+    analysis: Optional[str] = None
+    confidence: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class FindingResponse(BaseModel):
+    id: str
+    scan_id: str
+    endpoint_id: Optional[str] = None
+    parameter_id: Optional[str] = None
+    vulnerability_type: str
+    severity: str
+    confidence: Optional[str] = None
+    status: str
+    description: Optional[str] = None
+    impact: Optional[str] = None
+    cwe: Optional[str] = None
+    owasp_category: Optional[str] = None
+    remediation: Optional[str] = None
+    created_at: Optional[datetime] = None
+    evidence: list[EvidenceResponse] = []
+    model_config = ConfigDict(from_attributes=True)
+

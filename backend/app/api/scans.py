@@ -5,13 +5,15 @@ from datetime import datetime
 
 from app.core.database import get_db
 from app.models.models import Scan, Target
-from app.schemas.scans import ScanCreate, ScanResponse, ScanStatusResponse, ParameterResponse, AttackSurfaceResponse, AttackSurfaceNodeResponse, SubdomainResponse
+from app.schemas.scans import ScanCreate, ScanResponse, ScanStatusResponse, ParameterResponse, AttackSurfaceResponse, AttackSurfaceNodeResponse, SubdomainResponse, FindingResponse
 from app.schemas.graph import GraphResponse
 from app.scanner.prioritization.models import EndpointPriorityResult
 from app.scanner.prioritization.scorer import RuleBasedPrioritizer
 from app.scanner.context.parameter_context import ParameterContext
 from app.scanner.fuzzer.result import FuzzTestResult
 from app.scanner.fuzzer.engine import SCAN_CONTEXTS, SCAN_FUZZ_RESULTS, FuzzingEngine
+from app.scanner.analysis.anomaly import AnomalyReport
+from app.scanner.analysis.analyzer import SCAN_ANALYSIS_REPORTS
 from app.scanner.http_client import ResilientHttpClient
 from app.scanner.graph.builder import AttackSurfaceGraphBuilder
 from app.scanner.graph.serializer import GraphSerializer
@@ -215,3 +217,30 @@ async def get_scan_fuzz_results(scan_id: str, db: AsyncSession = Depends(get_db)
         raise HTTPException(status_code=404, detail="Scan not found")
 
     return SCAN_FUZZ_RESULTS.get(scan_id, [])
+
+@router.get("/{scan_id}/analysis", response_model=list[AnomalyReport])
+async def get_scan_analysis(scan_id: str, db: AsyncSession = Depends(get_db)):
+    res = await db.execute(select(Scan).where(Scan.id == scan_id))
+    if not res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    return SCAN_ANALYSIS_REPORTS.get(scan_id, [])
+
+@router.get("/{scan_id}/findings", response_model=list[FindingResponse])
+async def get_scan_findings(scan_id: str, db: AsyncSession = Depends(get_db)):
+    from app.models.models import Finding
+    from sqlalchemy.orm import selectinload
+
+    res = await db.execute(select(Scan).where(Scan.id == scan_id))
+    if not res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    stmt = (
+        select(Finding)
+        .options(selectinload(Finding.evidence))
+        .where(Finding.scan_id == scan_id)
+        .order_by(Finding.created_at.desc())
+    )
+    findings_res = await db.execute(stmt)
+    findings = findings_res.scalars().all()
+    return findings
