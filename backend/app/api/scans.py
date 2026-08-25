@@ -7,6 +7,12 @@ from app.core.database import get_db
 from app.models.models import Scan, Target
 from app.schemas.scans import ScanCreate, ScanResponse, ScanStatusResponse, ParameterResponse, AttackSurfaceResponse, AttackSurfaceNodeResponse, SubdomainResponse
 from app.schemas.graph import GraphResponse
+from app.scanner.prioritization.models import EndpointPriorityResult
+from app.scanner.prioritization.scorer import RuleBasedPrioritizer
+from app.scanner.context.parameter_context import ParameterContext
+from app.scanner.fuzzer.result import FuzzTestResult
+from app.scanner.fuzzer.engine import SCAN_CONTEXTS, SCAN_FUZZ_RESULTS, FuzzingEngine
+from app.scanner.http_client import ResilientHttpClient
 from app.scanner.graph.builder import AttackSurfaceGraphBuilder
 from app.scanner.graph.serializer import GraphSerializer
 from app.scanner.manager import scan_manager
@@ -175,3 +181,37 @@ async def get_scan_graph(scan_id: str, db: AsyncSession = Depends(get_db)):
     builder = AttackSurfaceGraphBuilder(db, scan_id)
     graph = await builder.build()
     return GraphSerializer.serialize(graph)
+
+@router.get("/{scan_id}/priorities", response_model=list[EndpointPriorityResult])
+async def get_scan_priorities(scan_id: str, db: AsyncSession = Depends(get_db)):
+    res = await db.execute(select(Scan).where(Scan.id == scan_id))
+    if not res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Scan not found")
+        
+    prioritizer = RuleBasedPrioritizer(db, scan_id)
+    return await prioritizer.prioritize_all()
+
+@router.get("/{scan_id}/context", response_model=list[ParameterContext])
+async def get_scan_context(scan_id: str, db: AsyncSession = Depends(get_db)):
+    res = await db.execute(select(Scan).where(Scan.id == scan_id))
+    if not res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    if scan_id in SCAN_CONTEXTS:
+        return SCAN_CONTEXTS[scan_id]
+        
+    # Build on demand
+    client = ResilientHttpClient(max_requests=10)
+    try:
+        fuzzer = FuzzingEngine(db, scan_id, client)
+        return await fuzzer.get_contexts()
+    finally:
+        await client.close()
+
+@router.get("/{scan_id}/fuzz-results", response_model=list[FuzzTestResult])
+async def get_scan_fuzz_results(scan_id: str, db: AsyncSession = Depends(get_db)):
+    res = await db.execute(select(Scan).where(Scan.id == scan_id))
+    if not res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    return SCAN_FUZZ_RESULTS.get(scan_id, [])

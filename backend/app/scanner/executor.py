@@ -92,6 +92,20 @@ async def run_scan_lifecycle(scan_id: str, scan_req: dict, cancel_event: asyncio
                     from app.scanner.analyzer import AttackSurfaceAnalyzer
                     analyzer = AttackSurfaceAnalyzer(db, scan_id)
                     await analyzer.analyze()
+                elif stage_name == "PRIORITIZATION":
+                    from app.scanner.prioritization.scorer import RuleBasedPrioritizer
+                    prioritizer = RuleBasedPrioritizer(db, scan_id)
+                    await prioritizer.prioritize_all()
+                elif stage_name == "FUZZING":
+                    from app.scanner.http_client import ResilientHttpClient
+                    from app.scanner.fuzzer.engine import FuzzingEngine
+                    max_reqs = scan_req.get("max_requests", 1000)
+                    fuzz_client = ResilientHttpClient(max_requests=max_reqs, concurrency=5, timeout=10)
+                    try:
+                        fuzzer = FuzzingEngine(db, scan_id, fuzz_client)
+                        await fuzzer.run(cancel_event)
+                    finally:
+                        await fuzz_client.close()
                 else:
                     # Mock work for other stages
                     for _ in range(5):
