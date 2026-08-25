@@ -4,13 +4,35 @@ import './NewScan.css';
 
 export default function NewScan() {
   const navigate = useNavigate();
+  const [targetUrl, setTargetUrl] = useState("https://example.com");
   const [crawlDepth, setCrawlDepth] = useState(3);
   const [reqLimit, setReqLimit] = useState(10000);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate scan creation
-    navigate('/scans/demo-new/progress');
+    setIsSubmitting(true);
+    try {
+      const response = await fetch('/api/scans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          target_url: targetUrl,
+          request_limit: reqLimit,
+          crawl_depth: crawlDepth
+        })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        navigate(`/scans/${data.scan_id}/progress`);
+      } else {
+        console.error("Failed to start scan");
+        setIsSubmitting(false);
+      }
+    } catch (error) {
+      console.error(error);
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -62,7 +84,8 @@ export default function NewScan() {
                     type="url" 
                     className="form-input-lg font-mono" 
                     placeholder="https://" 
-                    defaultValue="https://example.com" 
+                    value={targetUrl}
+                    onChange={(e) => setTargetUrl(e.target.value)}
                     required 
                   />
                 </div>
@@ -287,9 +310,9 @@ export default function NewScan() {
               <span className="scan-op-dot bg-tertiary pulse"></span>
               Est. Duration: 2-4 hours
             </span>
-            <button type="submit" className="btn-start-scan">
+            <button type="submit" className="btn-start-scan" disabled={isSubmitting}>
               <span className="material-symbols-outlined">play_arrow</span>
-              START SCAN
+              {isSubmitting ? 'STARTING...' : 'START SCAN'}
             </button>
           </div>
         </div>
