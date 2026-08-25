@@ -6,6 +6,7 @@ from datetime import datetime
 from app.core.database import get_db
 from app.models.models import Scan, Target
 from app.schemas.scans import ScanCreate, ScanResponse, ScanStatusResponse
+from app.scanner.manager import scan_manager
 
 router = APIRouter()
 
@@ -24,7 +25,8 @@ async def create_scan(scan_req: ScanCreate, db: AsyncSession = Depends(get_db)):
     # 2. Create Scan
     new_scan = Scan(
         target_id=target.id,
-        status="queued",
+        status="QUEUED",
+        current_stage="INITIALIZING",
         scan_mode=scan_req.scan_mode,
         started_at=datetime.utcnow()
     )
@@ -32,7 +34,10 @@ async def create_scan(scan_req: ScanCreate, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(new_scan)
     
-    return ScanResponse(scan_id=new_scan.id, status="queued")
+    # 3. Trigger Background Manager
+    scan_manager.start_scan(new_scan.id, scan_req.model_dump())
+    
+    return ScanResponse(scan_id=new_scan.id, status="QUEUED")
 
 @router.get("/{scan_id}", response_model=ScanStatusResponse)
 async def get_scan_status(scan_id: str, db: AsyncSession = Depends(get_db)):
@@ -44,18 +49,21 @@ async def get_scan_status(scan_id: str, db: AsyncSession = Depends(get_db)):
         
     target_res = await db.execute(select(Target).where(Target.id == scan.target_id))
     target = target_res.scalar_one_or_none()
-        
-    # Mocking current_stage for the frontend requirement
-    current_stage = "Initialization"
-    if scan.status == "queued": current_stage = "Queued for execution"
-    elif scan.progress > 0 and scan.progress < 100: current_stage = "Discovery & Scanning"
-    elif scan.progress == 100: current_stage = "Complete"
     
     return ScanStatusResponse(
         status=scan.status,
         progress=scan.progress,
-        current_stage=current_stage,
+        current_stage=scan.current_stage,
         target_url=target.base_url if target else "Unknown",
         started_at=scan.started_at,
         completed_at=scan.completed_at
     )
+
+@router.post("/{scan_id}/cancel")
+async def cancel_scan(scan_id: str):
+    success = scan_manager.cancel_scan(scan_id)
+    if not success:
+        # Check if it even exists or is already completed in db?
+        # For simplicity, we just return status
+        return {"status": "Not running or could not cancel"}
+    return {"status": "Cancellation requested"}

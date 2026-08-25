@@ -23,6 +23,7 @@ class Scan(Base):
     target_id = Column(String, ForeignKey("targets.id", ondelete="CASCADE"), nullable=False, index=True)
     status = Column(String, default="pending", index=True)
     scan_mode = Column(String)
+    current_stage = Column(String, default="INITIALIZING", index=True)
     started_at = Column(DateTime(timezone=True))
     completed_at = Column(DateTime(timezone=True))
     progress = Column(Integer, default=0)
