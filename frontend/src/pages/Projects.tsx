@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { projectService, ProjectItem } from '../services/api';
 import './Projects.css';
 
 export default function Projects() {
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [showModal, setShowModal] = useState<boolean>(false);
@@ -44,7 +46,7 @@ export default function Projects() {
   };
 
   const handleDelete = async (projectId: string) => {
-    if (!window.confirm("Are you sure you want to delete this project?")) return;
+    if (!window.confirm("Are you sure you want to delete this target application workspace?")) return;
     try {
       await projectService.deleteProject(projectId);
       await loadProjects();
@@ -56,9 +58,14 @@ export default function Projects() {
   return (
     <div className="page-container">
       <div className="page-header">
-        <div>
-          <h1 className="page-title m-0">Projects</h1>
-          <p className="page-subtitle mt-2">Manage your target applications and scan environments.</p>
+        <div style={{display: 'flex', alignItems: 'center', gap: '16px'}}>
+          <button className="btn-back" onClick={() => navigate(-1)} title="Go Back">
+            <span className="material-symbols-outlined">arrow_back</span>
+          </button>
+          <div>
+            <h1 className="page-title m-0">Target Project Workspaces</h1>
+            <p className="page-subtitle mt-1">Organize websites, internal APIs, and scan environments under CYPHER workspaces.</p>
+          </div>
         </div>
         <button className="btn-primary flex items-center gap-2 shadow-sm" onClick={() => setShowModal(true)}>
           <span className="material-symbols-outlined text-[20px]">add</span>
@@ -72,31 +79,31 @@ export default function Projects() {
           backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1000,
           display: 'flex', alignItems: 'center', justifyContent: 'center'
         }}>
-          <div className="card" style={{maxWidth: '480px', width: '100%', padding: '24px', background: 'var(--color-surface)', borderRadius: '12px'}}>
+          <div className="card" style={{maxWidth: '480px', width: '100%', padding: '24px', background: 'var(--color-surface)', borderRadius: '12px', border: '1px solid var(--color-outline-variant)'}}>
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
-              <h2 style={{margin: 0, fontSize: '18px', fontWeight: 700}}>Create New Project</h2>
+              <h2 style={{margin: 0, fontSize: '18px', fontWeight: 700}}>Create Project Workspace</h2>
               <button className="btn-icon-transparent" onClick={() => setShowModal(false)}>
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
             <form onSubmit={handleCreate}>
               <div style={{marginBottom: '16px'}}>
-                <label className="form-label">Project Name *</label>
+                <label className="form-label">Project / Target Domain Name *</label>
                 <input 
                   type="text" 
                   className="form-input" 
-                  placeholder="e.g. Production Infrastructure" 
+                  placeholder="e.g. Fintech Core API" 
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required 
                 />
               </div>
               <div style={{marginBottom: '20px'}}>
-                <label className="form-label">Description</label>
+                <label className="form-label">Scope & Architecture Notes</label>
                 <textarea 
                   className="form-input" 
                   rows={3}
-                  placeholder="Workspace scope notes..."
+                  placeholder="e.g. Production microservices, OAuth endpoints, staging endpoints..."
                   value={desc}
                   onChange={(e) => setDesc(e.target.value)}
                 />
@@ -117,6 +124,10 @@ export default function Projects() {
           <div style={{gridColumn: 'span 3', padding: '32px', textAlign: 'center', color: 'var(--color-on-surface-variant)'}}>
             Loading project environments...
           </div>
+        ) : projects.length === 0 ? (
+          <div style={{gridColumn: 'span 3', padding: '32px', textAlign: 'center', color: 'var(--color-on-surface-variant)'}}>
+            No target projects configured yet. Click "New Project" to define your first scan scope.
+          </div>
         ) : (
           projects.map((proj) => {
             const glowClass = proj.risk_score >= 7 ? 'glow-error' : proj.risk_score >= 4 ? 'glow-tertiary' : 'glow-primary';
@@ -132,7 +143,7 @@ export default function Projects() {
                     </div>
                     <div>
                       <h2 className="project-title m-0">{proj.name}</h2>
-                      <span className="project-subtitle">{proj.description || `${proj.total_targets} target(s)`}</span>
+                      <span className="project-subtitle">{proj.description || 'Active security monitoring target'}</span>
                     </div>
                   </div>
                   <button className="btn-icon-transparent" onClick={() => handleDelete(proj.id)} title="Delete Project">
@@ -140,55 +151,33 @@ export default function Projects() {
                   </button>
                 </div>
                 
-                <div className="project-metrics">
-                  <div className="metric">
-                    <span className="metric-label">Targets</span>
-                    <span className="metric-value">{proj.total_targets}</span>
+                <div className="project-card-body">
+                  <div className="project-stat-box">
+                    <span className="stat-label font-caps">Targets</span>
+                    <span className="stat-value font-mono">{proj.total_targets}</span>
                   </div>
-                  <div className="metric">
-                    <span className="metric-label">Findings</span>
-                    <span className={`metric-value ${proj.total_findings > 0 ? textClass : ''}`}>{proj.total_findings}</span>
+                  <div className="project-stat-box">
+                    <span className="stat-label font-caps">Scans Executed</span>
+                    <span className="stat-value font-mono">{proj.total_scans}</span>
                   </div>
-                  <div className="metric">
-                    <span className="metric-label">Risk Score</span>
-                    <div className="flex items-baseline gap-1">
-                      <span className={`metric-value ${textClass}`}>{proj.risk_score}</span>
-                      <span className={`metric-subtext ${textClass}`}>/10</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="project-trend">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="trend-label">Security Posture</span>
-                    <span className={`trend-value ${textClass} flex items-center gap-1`}>
-                      <span className="material-symbols-outlined text-[14px]">shield</span>
-                      {proj.total_findings === 0 ? 'Protected' : 'Triage Required'}
+                  <div className="project-stat-box">
+                    <span className="stat-label font-caps">Risk Rating</span>
+                    <span className={`stat-value font-mono ${textClass}`}>
+                      {proj.risk_score > 0 ? proj.risk_score.toFixed(1) : 'Safe'}
                     </span>
                   </div>
-                  <svg className={`w-full h-12 ${textClass}`} preserveAspectRatio="none" viewBox="0 0 200 40">
-                    <path d="M0,35 L40,30 L80,38 L120,20 L160,25 L200,5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path>
-                    <path d="M0,35 L40,30 L80,38 L120,20 L160,25 L200,5 L200,40 L0,40 Z" fill="currentColor" fillOpacity="0.1"></path>
-                  </svg>
                 </div>
-                
-                <div className="project-tags">
-                  <span className="project-tag">Active Scope</span>
-                  <span className="project-tag">{proj.total_scans} Scans</span>
+
+                <div className="project-card-footer">
+                  <button className="btn-project-action" onClick={() => navigate('/targets')}>
+                    <span>Manage Targets</span>
+                    <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                  </button>
                 </div>
               </div>
             );
           })
         )}
-
-        {/* Add New Project Card */}
-        <div className="project-card-new" onClick={() => setShowModal(true)} style={{cursor: 'pointer'}}>
-          <div className="project-card-new-icon">
-            <span className="material-symbols-outlined text-[32px]">add</span>
-          </div>
-          <h3 className="project-title m-0 text-center">Create New Project</h3>
-          <p className="project-card-new-desc">Set up a new target environment for continuous scanning.</p>
-        </div>
       </div>
     </div>
   );

@@ -344,7 +344,7 @@ async def get_scan_subdomains(scan_id: str, db: AsyncSession = Depends(get_db)):
     ]
 
 @router.get("/{scan_id}/graph", response_model=GraphResponse)
-async def get_scan_graph(scan_id: str, db: AsyncSession = Depends(get_db)):
+async def get_scan_graph(scan_id: str, depth: Optional[int] = None, db: AsyncSession = Depends(get_db)):
     actual_id = scan_id
     if scan_id == "latest":
         latest = await db.execute(select(Scan).order_by(Scan.started_at.desc().nullslast()).limit(1))
@@ -353,7 +353,7 @@ async def get_scan_graph(scan_id: str, db: AsyncSession = Depends(get_db)):
             return GraphResponse(nodes=[], edges=[])
         actual_id = sc.id
 
-    builder = AttackSurfaceGraphBuilder(db, actual_id)
+    builder = AttackSurfaceGraphBuilder(db, actual_id, max_depth=depth)
     graph = await builder.build()
     return GraphSerializer.serialize(graph)
 
@@ -552,3 +552,17 @@ async def get_scan_pdf_report(scan_id: str, db: AsyncSession = Depends(get_db)):
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+@router.delete("/{scan_id}")
+async def delete_scan(scan_id: str, db: AsyncSession = Depends(get_db)):
+    """Delete a scan and cascade associated records."""
+    res = await db.execute(select(Scan).where(Scan.id == scan_id))
+    scan = res.scalar_one_or_none()
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    
+    await db.delete(scan)
+    await db.commit()
+    return {"message": "Scan deleted successfully", "scan_id": scan_id}
+
+

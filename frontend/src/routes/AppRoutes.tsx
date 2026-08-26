@@ -10,6 +10,8 @@ import FuzzingActivity from '../pages/FuzzingActivity';
 import Fuzzing from '../pages/Fuzzing';
 import Reports from '../pages/Reports';
 import Settings from '../pages/Settings';
+import Notifications from '../pages/Notifications';
+import Profile from '../pages/Profile';
 import Vulnerabilities from '../pages/Vulnerabilities';
 import VulnerabilityDetails from '../pages/VulnerabilityDetails';
 import ScanDetails from '../pages/ScanDetails';
@@ -18,6 +20,7 @@ import Targets from '../pages/Targets';
 import Payloads from '../pages/Payloads';
 import Documentation from '../pages/Documentation';
 import AppLayout from '../components/layout/AppLayout';
+
 
 export default function AppRoutes() {
   return (
@@ -44,6 +47,8 @@ export default function AppRoutes() {
         <Route path="/fuzzing" element={<FuzzingActivity />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/notifications" element={<Notifications />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="/vulnerabilities" element={<Vulnerabilities />} />
         <Route path="/vulnerabilities/:id" element={<VulnerabilityDetails />} />
         
@@ -56,3 +61,4 @@ export default function AppRoutes() {
     </Routes>
   );
 }
+

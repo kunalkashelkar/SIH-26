@@ -21,8 +21,15 @@ export default function Settings() {
   return (
     <div className="settings-container">
       <div className="settings-header">
-        <h1 className="page-title m-0">Settings</h1>
-        <p className="page-subtitle m-0">Manage your project preferences and integrations.</p>
+        <div style={{display: 'flex', alignItems: 'center', gap: '16px'}}>
+          <button className="btn-back" onClick={() => window.history.back()} title="Go Back">
+            <span className="material-symbols-outlined">arrow_back</span>
+          </button>
+          <div>
+            <h1 className="page-title m-0">Settings</h1>
+            <p className="page-subtitle m-0">Manage your project preferences and integrations.</p>
+          </div>
+        </div>
       </div>
 
       <div className="settings-body">

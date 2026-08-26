@@ -1,38 +1,145 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { healthService, SystemHealth } from '../../services/api';
 
-export default function Topbar() {
+interface TopbarProps {
+  onToggleMobileMenu?: () => void;
+}
+
+export default function Topbar({ onToggleMobileMenu }: TopbarProps) {
   const navigate = useNavigate();
+  const [health, setHealth] = useState<SystemHealth | null>(null);
+  const [showHealthModal, setShowHealthModal] = useState(false);
+
+  useEffect(() => {
+    async function checkHealth() {
+      try {
+        const res = await healthService.getHealth();
+        setHealth(res);
+      } catch (err) {
+        console.warn("System health check warning:", err);
+      }
+    }
+    checkHealth();
+    const interval = setInterval(checkHealth, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const isHealthy = health?.status === 'ok';
 
   return (
     <header className="app-topbar">
-      <div className="topbar-search-container">
-        <div className="search-input-wrapper">
-          <span className="material-symbols-outlined search-icon">search</span>
-          <input 
-            type="text" 
-            className="search-input" 
-            placeholder="Search endpoints, scans, findings..." 
-          />
+      <div className="topbar-left-wrapper">
+        {onToggleMobileMenu && (
+          <button 
+            className="mobile-hamburger-btn" 
+            onClick={onToggleMobileMenu}
+            title="Toggle Navigation Menu"
+          >
+            <span className="material-symbols-outlined">menu</span>
+          </button>
+        )}
+        <div className="topbar-search-container">
+          <div className="search-input-wrapper">
+            <span className="material-symbols-outlined search-icon">search</span>
+            <input 
+              type="text" 
+              className="search-input" 
+              placeholder="Search endpoints, scans, findings..." 
+            />
+          </div>
         </div>
       </div>
       
       <div className="topbar-actions">
+        {/* Real System Health Indicator */}
+        <div 
+          style={{
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px', 
+            padding: '4px 10px', 
+            borderRadius: '16px', 
+            background: isHealthy ? 'rgba(76, 175, 80, 0.1)' : 'rgba(255, 152, 0, 0.1)', 
+            border: `1px solid ${isHealthy ? 'rgba(76, 175, 80, 0.3)' : 'rgba(255, 152, 0, 0.3)'}`,
+            cursor: 'pointer',
+            fontSize: '12px',
+            fontWeight: 600,
+            color: isHealthy ? '#4caf50' : '#ff9800'
+          }}
+          onClick={() => setShowHealthModal(!showHealthModal)}
+          title="Click to view live system engine health"
+        >
+          <span className="status-dot" style={{background: isHealthy ? '#4caf50' : '#ff9800'}}></span>
+          <span>{isHealthy ? 'System Online' : 'System Degraded'}</span>
+          <span className="material-symbols-outlined" style={{fontSize: '14px'}}>info</span>
+        </div>
 
-        <button className="btn-icon">
+        {showHealthModal && (
+          <div style={{
+            position: 'absolute',
+            top: '56px',
+            right: '80px',
+            width: '280px',
+            background: 'var(--color-surface-container-high)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '8px',
+            padding: '16px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            zIndex: 1000,
+            fontSize: '13px'
+          }}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px'}}>
+              <strong style={{color: 'var(--color-on-surface)'}}>Live Infrastructure Status</strong>
+              <button onClick={() => setShowHealthModal(false)} style={{background: 'none', border: 'none', color: 'var(--color-on-surface-variant)', cursor: 'pointer'}}>✕</button>
+            </div>
+            <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+              <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                <span className="text-muted">PostgreSQL DB:</span>
+                <span style={{color: health?.components?.database === 'connected' ? '#4caf50' : '#f44336', fontWeight: 600}}>
+                  {health?.components?.database || 'checking...'}
+                </span>
+              </div>
+              <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                <span className="text-muted">XGBoost Model:</span>
+                <span style={{color: health?.components?.ml_model === 'loaded' ? '#4caf50' : '#ff9800', fontWeight: 600}}>
+                  {health?.components?.ml_model || 'checking...'}
+                </span>
+              </div>
+              <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                <span className="text-muted">ML Preprocessor:</span>
+                <span style={{color: health?.components?.preprocessor === 'loaded' ? '#4caf50' : '#ff9800', fontWeight: 600}}>
+                  {health?.components?.preprocessor || 'checking...'}
+                </span>
+              </div>
+              <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                <span className="text-muted">Scanner Core:</span>
+                <span style={{color: health?.components?.scanner === 'ready' ? '#4caf50' : '#ff9800', fontWeight: 600}}>
+                  {health?.components?.scanner || 'checking...'}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <button className="btn-icon" onClick={() => navigate('/notifications')} title="Notifications">
           <span className="material-symbols-outlined">notifications</span>
         </button>
         
-        <button className="btn-icon">
-          <span className="material-symbols-outlined">help</span>
+        <button className="btn-icon" onClick={() => navigate('/settings')} title="Settings">
+          <span className="material-symbols-outlined">settings</span>
         </button>
         
         <img 
           alt="Profile" 
-          className="profile-avatar" 
+          className="profile-avatar cursor-pointer" 
+          style={{cursor: 'pointer'}}
+          title="View Profile"
+          onClick={() => navigate('/profile')}
           src="https://lh3.googleusercontent.com/aida/AP1WRLu-6cKuZDr6l-waS34Qne0PdpPaaC9AIoGERthEoWUMfj5-_aLzICDuzCCYoCoblWRAZT0w2SgS4pltJyXsbXR3GcIcwcqFADoGEZyjfITJ17LuF_NWxlIHqzLEXYs1t5vJgto7eGQPec3YvtreXxTOZSJ-GRqzpYtJOlt7YnBVyQ9SgSkwv88pxCbK8J41gc6KaphdUyW5UdwNEot24UuNEbSujaeEW62rqkZPQoQVYfIHfibSXg5UVDEr"
         />
       </div>
     </header>
   );
 }
+

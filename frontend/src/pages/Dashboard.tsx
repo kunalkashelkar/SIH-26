@@ -204,6 +204,49 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* ML Intelligence Banner */}
+          <div className="card" style={{padding: '20px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px'}}>
+              <h2 className="card-title m-0" style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                <span className="material-symbols-outlined" style={{color: '#9c27b0'}}>psychology</span>
+                ML Intelligence & Risk Classifier
+              </h2>
+              <span style={{
+                fontSize: '11px',
+                padding: '3px 8px',
+                borderRadius: '4px',
+                background: 'rgba(156, 39, 176, 0.15)',
+                color: '#ce93d8',
+                fontWeight: 600
+              }}>
+                XGBoost Phase 14 Model
+              </span>
+            </div>
+            
+            <p style={{fontSize: '13px', color: 'var(--color-on-surface-variant)', marginBottom: '16px', lineHeight: 1.5}}>
+              Live auxiliary inference engine trained on 2,100 discovery samples. Features preprocessed via <code>ColumnTransformer</code> into 27 orthogonal dimensions with a verified validation ROC-AUC of 0.996.
+            </p>
+
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px'}}>
+              <div style={{padding: '10px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px'}}>
+                <div style={{fontSize: '11px', color: 'var(--color-on-surface-variant)', textTransform: 'uppercase'}}>Model Type</div>
+                <div style={{fontSize: '14px', fontWeight: 700, marginTop: '2px', color: 'var(--color-on-surface)'}}>XGBoost Binary</div>
+              </div>
+              <div style={{padding: '10px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px'}}>
+                <div style={{fontSize: '11px', color: 'var(--color-on-surface-variant)', textTransform: 'uppercase'}}>Raw Features</div>
+                <div style={{fontSize: '14px', fontWeight: 700, marginTop: '2px', color: 'var(--color-on-surface)'}}>19 Extracted</div>
+              </div>
+              <div style={{padding: '10px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px'}}>
+                <div style={{fontSize: '11px', color: 'var(--color-on-surface-variant)', textTransform: 'uppercase'}}>Preprocessed</div>
+                <div style={{fontSize: '14px', fontWeight: 700, marginTop: '2px', color: 'var(--color-on-surface)'}}>27 Features</div>
+              </div>
+              <div style={{padding: '10px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px'}}>
+                <div style={{fontSize: '11px', color: 'var(--color-on-surface-variant)', textTransform: 'uppercase'}}>Tuned ROC-AUC</div>
+                <div style={{fontSize: '14px', fontWeight: 700, marginTop: '2px', color: '#4caf50'}}>0.9960</div>
+              </div>
+            </div>
+          </div>
+
           <div className="card no-padding">
             <div className="card-header-flex">
               <h2 className="card-title m-0">Recent Scans</h2>

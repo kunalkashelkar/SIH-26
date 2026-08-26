@@ -1,0 +1,121 @@
+.btn-back {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background-color: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
+  color: var(--color-on-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-back:hover {
+  background-color: var(--color-surface-container-high);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.notifications-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 900px;
+}
+
+.notification-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px 20px;
+  background-color: var(--color-surface-container-low);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 8px;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.notification-item:hover {
+  background-color: var(--color-surface-container);
+  border-color: var(--color-primary-container);
+}
+
+.notification-item.unread {
+  border-left: 3px solid var(--color-primary);
+  background-color: rgba(88, 166, 255, 0.03);
+}
+
+.notification-icon-box {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.icon-security {
+  background: rgba(255, 180, 171, 0.1);
+  color: var(--color-error);
+}
+
+.icon-scan {
+  background: rgba(88, 166, 255, 0.1);
+  color: var(--color-primary-container);
+}
+
+.icon-system {
+  background: rgba(255, 186, 66, 0.1);
+  color: var(--color-tertiary);
+}
+
+.notification-content {
+  flex: 1;
+}
+
+.notification-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.notification-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--color-on-surface);
+}
+
+.notification-time {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  font-family: var(--font-mono);
+}
+
+.notification-message {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+  line-height: 1.5;
+}
+
+.unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--color-primary);
+  position: absolute;
+  top: 18px;
+  right: 16px;
+}
+
+.notifications-empty {
+  padding: 60px 20px;
+  text-align: center;
+  background-color: var(--color-surface-container-low);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 8px;
+}

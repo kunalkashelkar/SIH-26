@@ -253,8 +253,9 @@ export const scanService = {
     return res.json();
   },
 
-  getScanGraph: async (scanId: string): Promise<GraphResponse> => {
-    const res = await fetch(`${API_BASE}/scans/${scanId}/graph`);
+  getScanGraph: async (scanId: string, depth?: number): Promise<GraphResponse> => {
+    const url = depth ? `${API_BASE}/scans/${scanId}/graph?depth=${depth}` : `${API_BASE}/scans/${scanId}/graph`;
+    const res = await fetch(url);
     if (!res.ok) throw new Error(`Failed to get scan graph: ${res.statusText}`);
     return res.json();
   },
@@ -276,6 +277,13 @@ export const scanService = {
     if (!res.ok) throw new Error(`Failed to get scan findings: ${res.statusText}`);
     return res.json();
   },
+
+  deleteScan: async (scanId: string): Promise<{ message: string; scan_id: string }> => {
+    const res = await fetch(`${API_BASE}/scans/${scanId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`Failed to delete scan: ${res.statusText}`);
+    return res.json();
+  },
+
 
   getScanAttackSurface: async (scanId: string): Promise<{ nodes: any[]; total_endpoints: number; total_apis: number }> => {
     const res = await fetch(`${API_BASE}/scans/${scanId}/attack-surface`);
@@ -496,6 +504,27 @@ export const mlService = {
       method: 'POST',
     });
     if (!res.ok) throw new Error(`Endpoint ML prediction failed: ${res.statusText}`);
+    return res.json();
+  }
+};
+
+// System Health Service
+export interface SystemHealth {
+  status: string;
+  service: string;
+  components: {
+    backend: string;
+    database: string;
+    ml_model: string;
+    preprocessor: string;
+    scanner: string;
+  };
+}
+
+export const healthService = {
+  getHealth: async (): Promise<SystemHealth> => {
+    const res = await fetch(`${API_BASE}/health`);
+    if (!res.ok) throw new Error(`Health check failed: ${res.statusText}`);
     return res.json();
   }
 };

@@ -32,16 +32,17 @@ class EdgeType:
     PARAMETER_TO_FINDING = "HAS_FINDING"
 
 class AttackSurfaceGraphBuilder:
-    def __init__(self, db: AsyncSession, scan_id: str):
+    def __init__(self, db: AsyncSession, scan_id: str, max_depth: int | None = None):
         self.db = db
         self.scan_id = scan_id
+        self.max_depth = max_depth
         self.graph = nx.DiGraph()
 
     async def build(self) -> nx.DiGraph:
         """
         Loads all discovered scan assets and verified findings, building a complete NetworkX DiGraph.
         """
-        logger.info(f"Building NetworkX attack surface graph for scan {self.scan_id}")
+        logger.info(f"Building NetworkX attack surface graph for scan {self.scan_id} (max_depth={self.max_depth})")
         self.graph.clear()
 
         # 1. Fetch scan and target
@@ -161,12 +162,15 @@ class AttackSurfaceGraphBuilder:
         has_api_nodes = False
 
         # 5. Fetch Endpoints & Parameters
-        stmt_ep = (
+        ep_query = (
             select(Endpoint)
             .options(selectinload(Endpoint.parameters))
             .where(Endpoint.scan_id == self.scan_id)
         )
-        res_ep = await self.db.execute(stmt_ep)
+        if self.max_depth is not None and self.max_depth > 0:
+            ep_query = ep_query.where(Endpoint.depth <= self.max_depth)
+
+        res_ep = await self.db.execute(ep_query)
         endpoints = res_ep.scalars().all()
 
         endpoint_node_map = {}

@@ -1,39 +1,45 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { scanService, ScanListItem } from '../services/api';
 import './Reports.css';
 
 export default function Reports() {
+  const navigate = useNavigate();
   const [scans, setScans] = useState<ScanListItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [filterText, setFilterText] = useState<string>('');
   const [downloading, setDownloading] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function loadReports() {
-      try {
-        setLoading(true);
-        const data = await scanService.getScans(50);
-        setScans(data);
-      } catch (e) {
-        console.warn("Reports scans fetch error:", e);
-      } finally {
-        setLoading(false);
-      }
+  const loadReports = async () => {
+    try {
+      setLoading(true);
+      const data = await scanService.getScans(50);
+      setScans(data);
+    } catch (e) {
+      console.warn("Reports scans fetch error:", e);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadReports();
   }, []);
 
-  const handleDownloadPdf = async (scanId: string) => {
+  const handleDownloadPdf = async (scan: ScanListItem) => {
     try {
-      setDownloading(`pdf-${scanId}`);
-      const url = scanService.downloadPdfReportUrl(scanId);
+      setDownloading(`pdf-${scan.id}`);
+      const url = scanService.downloadPdfReportUrl(scan.id);
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to download PDF report");
       const blob = await res.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = `security_report_${scanId.slice(0, 8)}.pdf`;
+      
+      // Clean, consistent file naming: security_report_<target_host>_<scan_id_short>.pdf
+      const safeTarget = scan.target_url.replace(/https?:\/\//, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+      a.download = `security_report_${safeTarget}_${scan.id.slice(0, 8)}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -44,15 +50,17 @@ export default function Reports() {
     }
   };
 
-  const handleDownloadJson = async (scanId: string) => {
+  const handleDownloadJson = async (scan: ScanListItem) => {
     try {
-      setDownloading(`json-${scanId}`);
-      const data = await scanService.getScanJsonReport(scanId);
+      setDownloading(`json-${scan.id}`);
+      const data = await scanService.getScanJsonReport(scan.id);
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = `security_report_${scanId.slice(0, 8)}.json`;
+      
+      const safeTarget = scan.target_url.replace(/https?:\/\//, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+      a.download = `security_report_${safeTarget}_${scan.id.slice(0, 8)}.json`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -63,15 +71,17 @@ export default function Reports() {
     }
   };
 
-  const handleDownloadSarif = async (scanId: string) => {
+  const handleDownloadSarif = async (scan: ScanListItem) => {
     try {
-      setDownloading(`sarif-${scanId}`);
-      const data = await scanService.getScanSarifReport(scanId);
+      setDownloading(`sarif-${scan.id}`);
+      const data = await scanService.getScanSarifReport(scan.id);
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = `security_report_${scanId.slice(0, 8)}.sarif`;
+      
+      const safeTarget = scan.target_url.replace(/https?:\/\//, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+      a.download = `security_report_${safeTarget}_${scan.id.slice(0, 8)}.sarif`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -79,6 +89,17 @@ export default function Reports() {
       alert(`SARIF report fetch failed: ${err.message || err}`);
     } finally {
       setDownloading(null);
+    }
+  };
+
+  // Delete & Discard unwanted scan reports
+  const handleDeleteReport = async (scanId: string, targetUrl: string) => {
+    if (!window.confirm(`Discard report and scan data for ${targetUrl}?`)) return;
+    try {
+      await scanService.deleteScan(scanId);
+      await loadReports();
+    } catch (err: any) {
+      alert(`Failed to delete report: ${err.message || err}`);
     }
   };
 
@@ -98,21 +119,27 @@ export default function Reports() {
   return (
     <div className="page-container">
       <div className="reports-header">
-        <h1 className="page-title m-0">Security Reports</h1>
+        <div style={{display: 'flex', alignItems: 'center', gap: '16px'}}>
+          <button className="btn-back" onClick={() => navigate(-1)} title="Go Back">
+            <span className="material-symbols-outlined">arrow_back</span>
+          </button>
+          <div>
+            <h1 className="page-title m-0">Security Audit Reports</h1>
+            <p className="page-subtitle m-0 mt-1">Export, review, or discard stored vulnerability assessments.</p>
+          </div>
+        </div>
+
         <div className="reports-actions">
           <div className="reports-search">
             <span className="material-symbols-outlined">search</span>
             <input 
               type="text" 
               className="reports-search-input" 
-              placeholder="Filter reports..." 
+              placeholder="Filter by target or ID..." 
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
             />
           </div>
-          <button className="btn-icon-outline">
-            <span className="material-symbols-outlined text-[20px]">filter_list</span>
-          </button>
         </div>
       </div>
 
@@ -123,7 +150,7 @@ export default function Reports() {
           </div>
         ) : displayedScans.length === 0 ? (
           <div style={{gridColumn: 'span 3', padding: '32px', textAlign: 'center', color: 'var(--color-on-surface-variant)'}}>
-            No scan reports available. Start a scan to generate comprehensive audit reports.
+            No scan reports found. Run a target scan to generate auditable compliance reports.
           </div>
         ) : (
           displayedScans.map((scan) => {
@@ -147,41 +174,52 @@ export default function Reports() {
                         </p>
                       </div>
                     </div>
-                    <div className={`report-badge ${hasFindings ? (scan.critical_findings > 0 ? 'badge-red' : 'badge-yellow') : 'badge-gray'}`}>
-                      <span className="material-symbols-outlined text-[14px]">
-                        {hasFindings ? 'warning' : 'check_circle'}
-                      </span>
-                      {scan.total_findings} Confirmed Findings
+                    
+                    <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                      <div className={`report-badge ${hasFindings ? (scan.critical_findings > 0 ? 'badge-red' : 'badge-yellow') : 'badge-gray'}`}>
+                        <span className="material-symbols-outlined text-[14px]">
+                          {hasFindings ? 'warning' : 'check_circle'}
+                        </span>
+                        {scan.total_findings} Findings
+                      </div>
+                      <button 
+                        className="btn-icon-transparent"
+                        onClick={() => handleDeleteReport(scan.id, scan.target_url)}
+                        title="Discard this report and scan history"
+                        style={{color: 'var(--color-error)'}}
+                      >
+                        <span className="material-symbols-outlined text-[18px]">delete</span>
+                      </button>
                     </div>
                   </div>
                   
                   <div className="report-divider"></div>
                   
                   <div className="report-actions">
-                    <button className="btn-view" onClick={() => handleDownloadJson(scan.id)}>
-                      <span className="material-symbols-outlined text-[16px]">visibility</span> View JSON
+                    <button className="btn-view" onClick={() => navigate(`/scans/${scan.id}/findings`)}>
+                      <span className="material-symbols-outlined text-[16px]">visibility</span> View Findings
                     </button>
                     <div className="download-group">
                       <button 
                         className="btn-download" 
-                        title="Download PDF" 
-                        onClick={() => handleDownloadPdf(scan.id)}
+                        title="Download PDF Report" 
+                        onClick={() => handleDownloadPdf(scan)}
                         disabled={downloading === `pdf-${scan.id}`}
                       >
                         <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
                       </button>
                       <button 
                         className="btn-download font-mono-sm" 
-                        title="Download JSON"
-                        onClick={() => handleDownloadJson(scan.id)}
+                        title="Download JSON Report"
+                        onClick={() => handleDownloadJson(scan)}
                         disabled={downloading === `json-${scan.id}`}
                       >
                         {'{ }'}
                       </button>
                       <button 
                         className="btn-download font-small-caps" 
-                        title="Download SARIF"
-                        onClick={() => handleDownloadSarif(scan.id)}
+                        title="Download SARIF File"
+                        onClick={() => handleDownloadSarif(scan)}
                         disabled={downloading === `sarif-${scan.id}`}
                       >
                         SARIF

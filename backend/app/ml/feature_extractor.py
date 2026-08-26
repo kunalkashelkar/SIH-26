@@ -43,6 +43,7 @@ def endpoint_type(endpoint: Endpoint) -> str:
     """
     Classify endpoint as API, static or normal web endpoint.
     """
+
     if bool(endpoint.is_api):
         return "api"
 
@@ -72,6 +73,7 @@ def is_external_host(host: str) -> int:
     This is a feature for prioritization, not proof
     that the endpoint is reachable from the Internet.
     """
+
     host = (host or "").lower().strip()
 
     if not host:
@@ -85,6 +87,7 @@ def is_external_host(host: str) -> int:
 
     try:
         ip = ipaddress.ip_address(host)
+
         return int(
             not (
                 ip.is_private
@@ -92,6 +95,7 @@ def is_external_host(host: str) -> int:
                 or ip.is_link_local
             )
         )
+
     except ValueError:
         # Normal DNS hostname
         return 1
@@ -109,15 +113,20 @@ def build_pre_fuzz_graph(
 
     IMPORTANT:
     Findings and FuzzResults are NOT added.
+
     This prevents target leakage.
     """
+
     graph = nx.DiGraph()
+
     endpoint_nodes = {}
     host_parent = {}
     subdomain_set = set()
 
     base_url = scan.target.base_url if scan.target else ""
+
     parsed = urllib.parse.urlparse(base_url)
+
     root_host = (
         parsed.hostname
         or "localhost"
@@ -126,54 +135,151 @@ def build_pre_fuzz_graph(
     target_node = f"target_{scan.target_id}"
     domain_node = f"domain_{root_host}"
 
-    graph.add_node(target_node, type="TARGET")
-    graph.add_node(domain_node, type="DOMAIN")
-    graph.add_edge(target_node, domain_node)
+    graph.add_node(
+        target_node,
+        type="TARGET"
+    )
 
+    graph.add_node(
+        domain_node,
+        type="DOMAIN"
+    )
+
+    graph.add_edge(
+        target_node,
+        domain_node
+    )
+
+    # -----------------------------
     # SUBDOMAINS
+    # -----------------------------
+
     for sub in subdomains:
-        host = (sub.domain or "").lower()
+
+        host = (
+            sub.domain
+            or ""
+        ).lower()
+
         node = f"subdomain_{sub.id}"
-        graph.add_node(node, type="SUBDOMAIN")
-        graph.add_edge(domain_node, node)
+
+        graph.add_node(
+            node,
+            type="SUBDOMAIN"
+        )
+
+        graph.add_edge(
+            domain_node,
+            node
+        )
+
         host_parent[host] = node
         subdomain_set.add(host)
 
+    # -----------------------------
     # VHOSTS
+    # -----------------------------
+
     vhost_set = set()
+
     for vh in vhosts:
-        host = (vh.host or "").lower()
+
+        host = (
+            vh.host
+            or ""
+        ).lower()
+
         node = f"vhost_{vh.id}"
-        graph.add_node(node, type="VIRTUAL_HOST")
-        graph.add_edge(host_parent.get(host, domain_node), node)
+
+        graph.add_node(
+            node,
+            type="VIRTUAL_HOST"
+        )
+
+        graph.add_edge(
+            host_parent.get(
+                host,
+                domain_node
+            ),
+            node
+        )
+
         host_parent[host] = node
         vhost_set.add(host)
 
+    # -----------------------------
     # ENDPOINTS
+    # -----------------------------
+
     api_node = f"api_group_{scan.id}"
     has_api = False
 
     for endpoint in endpoints:
-        node = f"endpoint_{endpoint.id}"
-        endpoint_nodes[endpoint.id] = node
-        graph.add_node(node, type="ENDPOINT")
 
-        host = endpoint_host(endpoint.url) or root_host
-        parent = host_parent.get(host, domain_node)
-        graph.add_edge(parent, node)
+        node = f"endpoint_{endpoint.id}"
+
+        endpoint_nodes[
+            endpoint.id
+        ] = node
+
+        graph.add_node(
+            node,
+            type="ENDPOINT"
+        )
+
+        host = (
+            endpoint_host(endpoint.url)
+            or root_host
+        )
+
+        parent = host_parent.get(
+            host,
+            domain_node
+        )
+
+        graph.add_edge(
+            parent,
+            node
+        )
 
         # API relationship
         if endpoint.is_api:
+
             has_api = True
-            graph.add_node(api_node, type="API")
-            graph.add_edge(domain_node, api_node)
-            graph.add_edge(api_node, node)
+
+            graph.add_node(
+                api_node,
+                type="API"
+            )
+
+            graph.add_edge(
+                domain_node,
+                api_node
+            )
+
+            graph.add_edge(
+                api_node,
+                node
+            )
 
         # Parameters
-        for parameter in (endpoint.parameters or []):
-            parameter_node = f"param_{parameter.id}"
-            graph.add_node(parameter_node, type="PARAMETER")
-            graph.add_edge(node, parameter_node)
+        for parameter in (
+            endpoint.parameters or []
+        ):
+
+            parameter_node = (
+                f"param_{parameter.id}"
+            )
+
+            graph.add_node(
+                parameter_node,
+                type="PARAMETER"
+            )
+
+            graph.add_edge(
+                node,
+                parameter_node
+            )
 
     if not has_api and api_node in graph:
         graph.remove_node(api_node)
@@ -203,57 +309,116 @@ def extract_endpoint_features(
     """
     Convert one Endpoint into the ML feature vector.
     """
-    host = endpoint_host(endpoint.url)
-    parameters = list(endpoint.parameters or [])
+
+    host = endpoint_host(
+        endpoint.url
+    )
+
+    parameters = list(
+        endpoint.parameters or []
+    )
 
     query_count = sum(
         1
         for parameter in parameters
-        if (parameter.location or "").lower() == "query"
+        if (
+            parameter.location
+            or ""
+        ).lower() == "query"
     )
 
     body_count = sum(
         1
         for parameter in parameters
-        if (parameter.location or "").lower() == "body"
+        if (
+            parameter.location
+            or ""
+        ).lower() == "body"
     )
 
-    node = endpoint_nodes[endpoint.id]
+    node = endpoint_nodes[
+        endpoint.id
+    ]
+
     parent = host_parent.get(host)
 
     return {
+
         # Identifiers
         "endpoint_id": endpoint.id,
         "scan_id": scan.id,
         "target_id": scan.target_id,
 
         # Endpoint
-        "http_method": (endpoint.method or "GET").upper(),
-        "endpoint_depth": int(endpoint.depth or 0),
-        "endpoint_type": endpoint_type(endpoint),
+        "http_method": (
+            endpoint.method
+            or "GET"
+        ).upper(),
+
+        "endpoint_depth": int(
+            endpoint.depth or 0
+        ),
+
+        "endpoint_type": endpoint_type(
+            endpoint
+        ),
 
         # Parameters
-        "parameter_count": len(parameters),
-        "query_parameter_count": query_count,
-        "body_parameter_count": body_count,
+        "parameter_count": len(
+            parameters
+        ),
+
+        "query_parameter_count": (
+            query_count
+        ),
+
+        "body_parameter_count": (
+            body_count
+        ),
 
         # Security context
         "authentication_required": int(
-            endpoint.status_code in {401, 403}
+            endpoint.status_code
+            in {401, 403}
         ),
-        "external_exposure": is_external_host(host),
+
+        "external_exposure": (
+            is_external_host(host)
+        ),
 
         # Attack-surface graph
-        "graph_degree": int(graph.degree(node)),
+        "graph_degree": int(
+            graph.degree(node)
+        ),
+
         "related_endpoint_count": max(
             0,
-            len(related_endpoints_by_parent.get(parent, set())) - 1
+            len(
+                related_endpoints_by_parent.get(
+                    parent,
+                    set()
+                )
+            ) - 1
         ),
-        "api_relationship_count": int(bool(endpoint.is_api)),
-        "subdomain_relationship": int(host in subdomain_set),
-        "vhost_relationship": int(host in vhost_set),
+
+        "api_relationship_count": (
+            int(endpoint.is_api)
+        ),
+
+        "subdomain_relationship": int(
+            host in subdomain_set
+        ),
+
+        "vhost_relationship": int(
+            host in vhost_set
+        ),
 
         # Historical context
-        "historical_anomaly_count": historical_anomaly_count,
-        "historical_scan_count": historical_scan_count,
+        "historical_anomaly_count": (
+            historical_anomaly_count
+        ),
+
+        "historical_scan_count": (
+            historical_scan_count
+        ),
     }
