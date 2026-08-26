@@ -439,3 +439,63 @@ export const payloadService = {
     if (!res.ok) throw new Error(`Failed to delete payload: ${res.statusText}`);
   }
 };
+
+// Machine Learning API Interfaces & Service
+export interface MLPredictInput {
+  http_method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  endpoint_depth: number;
+  endpoint_type: 'API' | 'AUTH' | 'FILE' | 'PAGE' | 'UNKNOWN';
+  parameter_count: number;
+  query_parameter_count: number;
+  body_parameter_count: number;
+  authentication_required: number;
+  external_exposure: number;
+  response_status: number;
+  response_size: number;
+  response_time: number;
+  response_anomaly_score: number;
+  graph_degree: number;
+  related_endpoint_count: number;
+  api_relationship_count: number;
+  subdomain_relationship: number;
+  vhost_relationship: number;
+  previous_vulnerability_evidence: number;
+  fuzzing_history: number;
+}
+
+export interface MLPredictResponse {
+  prediction: number;
+  label: string;
+  vulnerable_probability: number;
+  not_vulnerable_probability: number;
+  model_name?: string;
+  model_type?: string;
+  raw_feature_count: number;
+  processed_feature_count: number;
+}
+
+export const mlService = {
+  getStatus: async () => {
+    const res = await fetch(`${API_BASE}/ml/status`);
+    if (!res.ok) throw new Error(`Failed to fetch ML status: ${res.statusText}`);
+    return res.json();
+  },
+
+  predict: async (data: MLPredictInput): Promise<MLPredictResponse> => {
+    const res = await fetch(`${API_BASE}/ml/predict`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(`ML prediction failed: ${res.statusText}`);
+    return res.json();
+  },
+
+  predictEndpoint: async (endpointId: string): Promise<MLPredictResponse> => {
+    const res = await fetch(`${API_BASE}/ml/predict-endpoint/${endpointId}`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw new Error(`Endpoint ML prediction failed: ${res.statusText}`);
+    return res.json();
+  }
+};

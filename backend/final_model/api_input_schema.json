@@ -1,0 +1,76 @@
+{
+    "target": "is_vulnerable",
+    "input_features": {
+        "http_method": {
+            "type": "string",
+            "allowed": [
+                "GET",
+                "POST",
+                "PUT",
+                "PATCH",
+                "DELETE"
+            ]
+        },
+        "endpoint_depth": {
+            "type": "integer"
+        },
+        "endpoint_type": {
+            "type": "string",
+            "allowed": [
+                "API",
+                "AUTH",
+                "FILE",
+                "PAGE",
+                "UNKNOWN"
+            ]
+        },
+        "parameter_count": {
+            "type": "integer"
+        },
+        "query_parameter_count": {
+            "type": "integer"
+        },
+        "body_parameter_count": {
+            "type": "integer"
+        },
+        "authentication_required": {
+            "type": "integer"
+        },
+        "external_exposure": {
+            "type": "integer"
+        },
+        "response_status": {
+            "type": "integer"
+        },
+        "response_size": {
+            "type": "integer"
+        },
+        "response_time": {
+            "type": "number"
+        },
+        "response_anomaly_score": {
+            "type": "number"
+        },
+        "graph_degree": {
+            "type": "integer"
+        },
+        "related_endpoint_count": {
+            "type": "integer"
+        },
+        "api_relationship_count": {
+            "type": "integer"
+        },
+        "subdomain_relationship": {
+            "type": "integer"
+        },
+        "vhost_relationship": {
+            "type": "integer"
+        },
+        "previous_vulnerability_evidence": {
+            "type": "integer"
+        },
+        "fuzzing_history": {
+            "type": "integer"
+        }
+    }
+}

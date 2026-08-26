@@ -1,0 +1,26 @@
+{
+    "model_name": "XGBoost Vulnerability Detection Model",
+    "model_type": "XGBoost",
+    "target": "is_vulnerable",
+    "raw_feature_count": 19,
+    "processed_feature_count": 27,
+    "categorical_features": [
+        "http_method",
+        "endpoint_type"
+    ],
+    "numerical_feature_count": 17,
+    "model_input_feature_count": 27,
+    "deployment_files": [
+        "xgboost_vulnerability_model.json",
+        "preprocessor.pkl",
+        "processed_feature_names.json",
+        "raw_feature_names.json",
+        "model_metadata.json",
+        "api_input_schema.json"
+    ],
+    "prediction_output": {
+        "prediction": "0 = Not Vulnerable, 1 = Vulnerable",
+        "probability": "Probability of vulnerability"
+    },
+    "created_at": "2026-08-26T10:58:42.729735"
+}

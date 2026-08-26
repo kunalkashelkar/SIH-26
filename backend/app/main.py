@@ -16,6 +16,8 @@ from app.api.targets import router as targets_router
 from app.api.projects import router as projects_router
 from app.api.payloads import router as payloads_router
 from app.api.reports import router as reports_router
+from app.api.ml import router as ml_router
+from app.ml.engine import MLEngine
 
 # Setup logging
 logging.basicConfig(
@@ -31,6 +33,12 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
     # Seed initial payload library, project, and target
     await seed_initial_data()
+    # Initialize ML Inference Engine (loads Phase 14 model & preprocessor)
+    ml_engine = MLEngine.get_instance()
+    if ml_engine.is_ready:
+        logger.info("ML Inference Engine ready on application startup.")
+    else:
+        logger.warning("ML Inference Engine initialized with warnings (check final_model directory).")
     yield
 
 app = FastAPI(
@@ -66,6 +74,7 @@ app.include_router(targets_router, prefix="/api/targets", tags=["Targets"])
 app.include_router(projects_router, prefix="/api/projects", tags=["Projects"])
 app.include_router(payloads_router, prefix="/api/payloads", tags=["Payloads"])
 app.include_router(reports_router, prefix="/api/reports", tags=["Reports"])
+app.include_router(ml_router)
 
 if __name__ == "__main__":
     import uvicorn

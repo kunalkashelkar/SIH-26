@@ -1,0 +1,21 @@
+[
+    "http_method",
+    "endpoint_depth",
+    "endpoint_type",
+    "parameter_count",
+    "query_parameter_count",
+    "body_parameter_count",
+    "authentication_required",
+    "external_exposure",
+    "response_status",
+    "response_size",
+    "response_time",
+    "response_anomaly_score",
+    "graph_degree",
+    "related_endpoint_count",
+    "api_relationship_count",
+    "subdomain_relationship",
+    "vhost_relationship",
+    "previous_vulnerability_evidence",
+    "fuzzing_history"
+]

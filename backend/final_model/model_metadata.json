@@ -1,0 +1,16 @@
+{
+    "model_type": "XGBoost",
+    "task": "Binary vulnerability classification",
+    "target": "is_vulnerable",
+    "classes": {
+        "0": "Not Vulnerable",
+        "1": "Vulnerable"
+    },
+    "training_samples": 2100,
+    "test_samples": 600,
+    "processed_feature_count": 19,
+    "raw_feature_count": 19,
+    "model_file": "xgboost_vulnerability_model.json",
+    "preprocessor_file": "preprocessor.pkl",
+    "feature_names_file": "feature_names.json"
+}
