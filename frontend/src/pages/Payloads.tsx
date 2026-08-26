@@ -1,7 +1,111 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { payloadService, PayloadItem } from '../services/api';
 import './Payloads.css';
 
 export default function Payloads() {
+  const [payloads, setPayloads] = useState<PayloadItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [showAddModal, setShowAddModal] = useState<boolean>(false);
+  const [newCat, setNewCat] = useState<string>('SQLI');
+  const [newPayload, setNewPayload] = useState<string>('');
+  const [newIndicator, setNewIndicator] = useState<string>('');
+  const [newDesc, setNewDesc] = useState<string>('');
+  const [submitting, setSubmitting] = useState<boolean>(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const loadPayloads = async () => {
+    try {
+      setLoading(true);
+      const data = await payloadService.getPayloads();
+      setPayloads(data);
+    } catch (e) {
+      console.warn("Failed to load payloads:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPayloads();
+  }, []);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPayload) return;
+    try {
+      setSubmitting(true);
+      await payloadService.createPayload({
+        category: newCat,
+        payload: newPayload,
+        indicator: newIndicator || undefined,
+        description: newDesc || undefined
+      });
+      setNewPayload('');
+      setNewIndicator('');
+      setNewDesc('');
+      setShowAddModal(false);
+      await loadPayloads();
+    } catch (err: any) {
+      alert(`Failed to add payload: ${err.message || err}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this payload?")) return;
+    try {
+      await payloadService.deletePayload(id);
+      await loadPayloads();
+    } catch (err: any) {
+      alert(`Failed to delete payload: ${err.message || err}`);
+    }
+  };
+
+  const handleCopy = (id: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const displayedPayloads = payloads.filter(p => {
+    const matchesCat = selectedCategory === 'ALL' || p.category.toUpperCase() === selectedCategory.toUpperCase();
+    const matchesSearch = !searchQuery || 
+      p.payload.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.description || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.category.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCat && matchesSearch;
+  });
+
+  // Calculate highest success vector
+  const categoryStats: Record<string, { total: number; success: number }> = {};
+  payloads.forEach(p => {
+    if (!categoryStats[p.category]) categoryStats[p.category] = { total: 0, success: 0 };
+    categoryStats[p.category].total += p.usage_count;
+    categoryStats[p.category].success += p.success_count;
+  });
+
+  let topVectorName = 'SQLi';
+  let topVectorRate = 0;
+  Object.entries(categoryStats).forEach(([cat, stat]) => {
+    const rate = stat.total > 0 ? (stat.success / stat.total) * 100 : 0;
+    if (rate >= topVectorRate) {
+      topVectorRate = rate;
+      topVectorName = cat;
+    }
+  });
+
+  const getCategoryClass = (cat: string) => {
+    const c = cat.toUpperCase();
+    if (c === 'SQLI') return 'text-primary';
+    if (c === 'XSS') return 'text-tertiary';
+    if (c === 'TRAVERSAL' || c === 'IDOR') return 'text-secondary';
+    if (c === 'AUTH_BYPASS' || c === 'OS_COMMAND') return 'text-error';
+    return 'text-primary';
+  };
+
   return (
     <div className="payloads-container">
       {/* Decorative Ambient Background */}
@@ -30,11 +134,79 @@ export default function Payloads() {
             Curate, monitor, and deploy custom fuzzing payloads. Analyze success rates across recent scan cycles to optimize mutation engines.
           </p>
         </div>
-        <button className="btn-primary shadow-sm" style={{padding: '12px 24px', fontSize: '16px'}}>
+        <button className="btn-primary shadow-sm" style={{padding: '12px 24px', fontSize: '16px'}} onClick={() => setShowAddModal(true)}>
           <span className="material-symbols-outlined text-[20px]">add</span>
           Add Payload
         </button>
       </div>
+
+      {showAddModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div className="card" style={{maxWidth: '520px', width: '100%', padding: '24px', background: 'var(--color-surface)', borderRadius: '12px'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
+              <h2 style={{margin: 0, fontSize: '18px', fontWeight: 700}}>Add Custom Fuzzing Payload</h2>
+              <button className="btn-icon-transparent" onClick={() => setShowAddModal(false)}>
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <form onSubmit={handleCreate}>
+              <div style={{marginBottom: '16px'}}>
+                <label className="form-label">Category</label>
+                <select className="form-input" value={newCat} onChange={(e) => setNewCat(e.target.value)}>
+                  <option value="SQLI">SQL Injection (SQLi)</option>
+                  <option value="XSS">Cross-Site Scripting (XSS)</option>
+                  <option value="IDOR">Insecure Direct Object Reference (IDOR)</option>
+                  <option value="AUTH_BYPASS">Authentication Bypass</option>
+                  <option value="OPEN_REDIRECT">Open Redirect</option>
+                  <option value="TYPE_CONFUSION">Type Confusion</option>
+                  <option value="INPUT_VALIDATION">Input Validation Probe</option>
+                </select>
+              </div>
+              <div style={{marginBottom: '16px'}}>
+                <label className="form-label">Payload String *</label>
+                <textarea 
+                  className="form-input font-mono" 
+                  rows={3} 
+                  placeholder="' OR '1'='1" 
+                  value={newPayload} 
+                  onChange={(e) => setNewPayload(e.target.value)}
+                  required 
+                />
+              </div>
+              <div style={{marginBottom: '16px'}}>
+                <label className="form-label">Expected Indicator</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="e.g. sql_syntax_error" 
+                  value={newIndicator} 
+                  onChange={(e) => setNewIndicator(e.target.value)} 
+                />
+              </div>
+              <div style={{marginBottom: '20px'}}>
+                <label className="form-label">Description</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="Probe description and behavior expectations..." 
+                  value={newDesc} 
+                  onChange={(e) => setNewDesc(e.target.value)} 
+                />
+              </div>
+              <div style={{display: 'flex', justifyContent: 'flex-end', gap: '12px'}}>
+                <button type="button" className="btn-link" onClick={() => setShowAddModal(false)}>Cancel</button>
+                <button type="submit" className="btn-primary" disabled={submitting}>
+                  {submitting ? 'Saving...' : 'Save Payload'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Metrics Bento Grid */}
       <div className="payloads-bento-grid">
@@ -46,8 +218,10 @@ export default function Payloads() {
             <span className="material-symbols-outlined text-primary text-[24px]">database</span>
           </div>
           <div className="bento-value-row">
-            <span className="bento-value-xl">4,892</span>
-            <span className="font-mono-sm text-secondary" style={{backgroundColor: '#32353b', padding: '2px 8px', borderRadius: '4px'}}>+124 this week</span>
+            <span className="bento-value-xl">{payloads.length}</span>
+            <span className="font-mono-sm text-secondary" style={{backgroundColor: '#32353b', padding: '2px 8px', borderRadius: '4px'}}>
+              Curated & Active
+            </span>
           </div>
         </div>
 
@@ -59,15 +233,15 @@ export default function Payloads() {
             <span className="material-symbols-outlined text-tertiary text-[24px]">crisis_alert</span>
           </div>
           <div className="bento-value-row">
-            <span className="bento-value-lg text-tertiary">OS Command</span>
-            <span className="font-mono-sm text-muted">28.4% success</span>
+            <span className="bento-value-lg text-tertiary">{topVectorName}</span>
+            <span className="font-mono-sm text-muted">{topVectorRate > 0 ? `${topVectorRate.toFixed(1)}% hit` : 'Active Engine'}</span>
           </div>
         </div>
 
         {/* Activity Sparkline */}
         <div className="bento-card bento-card-large">
           <div className="bento-header" style={{marginBottom: '8px'}}>
-            <span className="font-caps text-muted">Usage Frequency (30d)</span>
+            <span className="font-caps text-muted">Usage Frequency</span>
             <div className="flex gap-1">
               <span className="pill-dot bg-primary"></span>
               <span className="pill-dot" style={{backgroundColor: '#32353b'}}></span>
@@ -87,18 +261,41 @@ export default function Payloads() {
         {/* Filters & Search */}
         <div className="payloads-filters">
           <div className="filter-pills">
-            <button className="filter-pill active">All Vectors</button>
-            <button className="filter-pill">
+            <button 
+              className={`filter-pill ${selectedCategory === 'ALL' ? 'active' : ''}`}
+              onClick={() => setSelectedCategory('ALL')}
+            >
+              All Vectors ({payloads.length})
+            </button>
+            <button 
+              className={`filter-pill ${selectedCategory === 'SQLI' ? 'active' : ''}`}
+              onClick={() => setSelectedCategory('SQLI')}
+            >
               <span className="pill-dot bg-primary"></span> SQLi
             </button>
-            <button className="filter-pill">
+            <button 
+              className={`filter-pill ${selectedCategory === 'XSS' ? 'active' : ''}`}
+              onClick={() => setSelectedCategory('XSS')}
+            >
               <span className="pill-dot text-tertiary" style={{backgroundColor: 'currentColor'}}></span> XSS
             </button>
-            <button className="filter-pill">
-              <span className="pill-dot text-secondary" style={{backgroundColor: 'currentColor'}}></span> Path Traversal
+            <button 
+              className={`filter-pill ${selectedCategory === 'IDOR' ? 'active' : ''}`}
+              onClick={() => setSelectedCategory('IDOR')}
+            >
+              <span className="pill-dot text-secondary" style={{backgroundColor: 'currentColor'}}></span> IDOR
             </button>
-            <button className="filter-pill">
-              <span className="pill-dot text-error" style={{backgroundColor: 'currentColor'}}></span> OS Command
+            <button 
+              className={`filter-pill ${selectedCategory === 'AUTH_BYPASS' ? 'active' : ''}`}
+              onClick={() => setSelectedCategory('AUTH_BYPASS')}
+            >
+              <span className="pill-dot text-error" style={{backgroundColor: 'currentColor'}}></span> Auth Bypass
+            </button>
+            <button 
+              className={`filter-pill ${selectedCategory === 'INPUT_VALIDATION' ? 'active' : ''}`}
+              onClick={() => setSelectedCategory('INPUT_VALIDATION')}
+            >
+              <span className="pill-dot text-secondary" style={{backgroundColor: 'currentColor'}}></span> Validation
             </button>
           </div>
           <div className="reports-search" style={{maxWidth: '320px', width: '100%'}}>
@@ -107,6 +304,8 @@ export default function Payloads() {
               type="text" 
               className="reports-search-input" 
               placeholder="Filter strings..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
         </div>
@@ -122,141 +321,62 @@ export default function Payloads() {
           </div>
 
           <div className="flex flex-col">
-            {/* Row 1 */}
-            <div className="payloads-row">
-              <div className="row-accent bg-primary"></div>
-              <div style={{gridColumn: 'span 5', paddingRight: '16px', display: 'flex', alignItems: 'center'}}>
-                <div className="payload-code-container">
-                  <code className="text-primary">' UNION SELECT null, version(), database() --</code>
-                  <button className="copy-btn">
-                    <span className="material-symbols-outlined text-[14px]">content_copy</span>
-                  </button>
-                </div>
+            {loading ? (
+              <div style={{padding: '32px', textAlign: 'center', color: 'var(--color-on-surface-variant)'}}>
+                Loading payload library...
               </div>
-              <div style={{gridColumn: 'span 2', display: 'flex', alignItems: 'center'}}>
-                <span className="category-badge text-primary" style={{backgroundColor: 'rgba(88, 166, 255, 0.1)'}}>
-                  <span className="pill-dot bg-primary mr-2" style={{marginRight: '8px', width: '6px', height: '6px'}}></span>SQLi
-                </span>
+            ) : displayedPayloads.length === 0 ? (
+              <div style={{padding: '32px', textAlign: 'center', color: 'var(--color-on-surface-variant)'}}>
+                No payloads match the selected category and filter.
               </div>
-              <div style={{gridColumn: 'span 2', display: 'flex', flexDirection: 'column', gap: '6px', justifyContent: 'center'}}>
-                <div className="font-mono-sm text-primary">24.8%</div>
-                <div className="progress-bar-container">
-                  <div className="progress-bar-fill bg-primary" style={{width: '24.8%'}}></div>
-                </div>
-              </div>
-              <div className="font-mono-sm text-muted" style={{gridColumn: 'span 2', textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end'}}>
-                14,290
-              </div>
-              <div className="row-actions" style={{gridColumn: 'span 1'}}>
-                <button className="action-btn"><span className="material-symbols-outlined text-[18px]">edit</span></button>
-                <button className="action-btn delete"><span className="material-symbols-outlined text-[18px]">delete</span></button>
-              </div>
-            </div>
-
-            {/* Row 2 */}
-            <div className="payloads-row stripe">
-              <div className="row-accent text-tertiary" style={{backgroundColor: 'currentColor'}}></div>
-              <div style={{gridColumn: 'span 5', paddingRight: '16px', display: 'flex', alignItems: 'center'}}>
-                <div className="payload-code-container">
-                  <code className="text-tertiary">{`"><svg/onload=prompt(1)>`}</code>
-                  <button className="copy-btn">
-                    <span className="material-symbols-outlined text-[14px]">content_copy</span>
-                  </button>
-                </div>
-              </div>
-              <div style={{gridColumn: 'span 2', display: 'flex', alignItems: 'center'}}>
-                <span className="category-badge text-tertiary" style={{backgroundColor: 'rgba(255, 186, 66, 0.1)'}}>
-                  <span className="pill-dot bg-tertiary mr-2" style={{marginRight: '8px', width: '6px', height: '6px'}}></span>XSS
-                </span>
-              </div>
-              <div style={{gridColumn: 'span 2', display: 'flex', flexDirection: 'column', gap: '6px', justifyContent: 'center'}}>
-                <div className="font-mono-sm text-tertiary">18.2%</div>
-                <div className="progress-bar-container">
-                  <div className="progress-bar-fill bg-tertiary" style={{width: '18.2%'}}></div>
-                </div>
-              </div>
-              <div className="font-mono-sm text-muted" style={{gridColumn: 'span 2', textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end'}}>
-                8,441
-              </div>
-              <div className="row-actions" style={{gridColumn: 'span 1'}}>
-                <button className="action-btn"><span className="material-symbols-outlined text-[18px]">edit</span></button>
-                <button className="action-btn delete"><span className="material-symbols-outlined text-[18px]">delete</span></button>
-              </div>
-            </div>
-
-            {/* Row 3 */}
-            <div className="payloads-row">
-              <div className="row-accent text-secondary" style={{backgroundColor: 'currentColor'}}></div>
-              <div style={{gridColumn: 'span 5', paddingRight: '16px', display: 'flex', alignItems: 'center'}}>
-                <div className="payload-code-container">
-                  <code className="text-secondary">../../../../../../etc/passwd%00</code>
-                  <button className="copy-btn">
-                    <span className="material-symbols-outlined text-[14px]">content_copy</span>
-                  </button>
-                </div>
-              </div>
-              <div style={{gridColumn: 'span 2', display: 'flex', alignItems: 'center'}}>
-                <span className="category-badge text-secondary" style={{backgroundColor: 'rgba(193, 199, 208, 0.1)'}}>
-                  <span className="pill-dot bg-secondary mr-2" style={{marginRight: '8px', width: '6px', height: '6px'}}></span>Traversal
-                </span>
-              </div>
-              <div style={{gridColumn: 'span 2', display: 'flex', flexDirection: 'column', gap: '6px', justifyContent: 'center'}}>
-                <div className="font-mono-sm text-secondary">8.9%</div>
-                <div className="progress-bar-container">
-                  <div className="progress-bar-fill bg-secondary" style={{width: '8.9%'}}></div>
-                </div>
-              </div>
-              <div className="font-mono-sm text-muted" style={{gridColumn: 'span 2', textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end'}}>
-                5,112
-              </div>
-              <div className="row-actions" style={{gridColumn: 'span 1'}}>
-                <button className="action-btn"><span className="material-symbols-outlined text-[18px]">edit</span></button>
-                <button className="action-btn delete"><span className="material-symbols-outlined text-[18px]">delete</span></button>
-              </div>
-            </div>
-
-            {/* Row 4 */}
-            <div className="payloads-row stripe">
-              <div className="row-accent text-error" style={{backgroundColor: 'currentColor'}}></div>
-              <div style={{gridColumn: 'span 5', paddingRight: '16px', display: 'flex', alignItems: 'center'}}>
-                <div className="payload-code-container">
-                  <code className="text-error">127.0.0.1; ping -c 3 127.0.0.1</code>
-                  <button className="copy-btn">
-                    <span className="material-symbols-outlined text-[14px]">content_copy</span>
-                  </button>
-                </div>
-              </div>
-              <div style={{gridColumn: 'span 2', display: 'flex', alignItems: 'center'}}>
-                <span className="category-badge text-error" style={{backgroundColor: 'rgba(255, 180, 171, 0.1)'}}>
-                  <span className="pill-dot bg-error mr-2" style={{marginRight: '8px', width: '6px', height: '6px'}}></span>OS Cmd
-                </span>
-              </div>
-              <div style={{gridColumn: 'span 2', display: 'flex', flexDirection: 'column', gap: '6px', justifyContent: 'center'}}>
-                <div className="font-mono-sm text-error">28.4%</div>
-                <div className="progress-bar-container">
-                  <div className="progress-bar-fill bg-error" style={{width: '28.4%'}}></div>
-                </div>
-              </div>
-              <div className="font-mono-sm text-muted" style={{gridColumn: 'span 2', textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end'}}>
-                2,904
-              </div>
-              <div className="row-actions" style={{gridColumn: 'span 1'}}>
-                <button className="action-btn"><span className="material-symbols-outlined text-[18px]">edit</span></button>
-                <button className="action-btn delete"><span className="material-symbols-outlined text-[18px]">delete</span></button>
-              </div>
-            </div>
+            ) : (
+              displayedPayloads.map((item, idx) => {
+                const colorClass = getCategoryClass(item.category);
+                return (
+                  <div key={item.id} className={`payloads-row ${idx % 2 === 1 ? 'stripe' : ''}`}>
+                    <div className={`row-accent ${colorClass}`} style={{backgroundColor: 'currentColor'}}></div>
+                    <div style={{gridColumn: 'span 5', paddingRight: '16px', display: 'flex', alignItems: 'center'}}>
+                      <div className="payload-code-container">
+                        <code className={colorClass}>{item.payload}</code>
+                        <button className="copy-btn" onClick={() => handleCopy(item.id, item.payload)} title="Copy payload">
+                          <span className="material-symbols-outlined text-[14px]">
+                            {copiedId === item.id ? 'check' : 'content_copy'}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                    <div style={{gridColumn: 'span 2', display: 'flex', alignItems: 'center'}}>
+                      <span className={`category-badge ${colorClass}`} style={{backgroundColor: 'rgba(255, 255, 255, 0.06)'}}>
+                        <span className={`pill-dot mr-2`} style={{backgroundColor: 'currentColor', marginRight: '8px', width: '6px', height: '6px'}}></span>
+                        {item.category}
+                      </span>
+                    </div>
+                    <div style={{gridColumn: 'span 2', display: 'flex', flexDirection: 'column', gap: '6px', justifyContent: 'center'}}>
+                      <div className={`font-mono-sm ${colorClass}`}>{item.success_rate.toFixed(1)}%</div>
+                      <div className="progress-bar-container">
+                        <div className={`progress-bar-fill`} style={{backgroundColor: 'currentColor', width: `${Math.max(item.success_rate, 4)}%`}}></div>
+                      </div>
+                    </div>
+                    <div className="font-mono-sm text-muted" style={{gridColumn: 'span 2', textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end'}}>
+                      {item.usage_count.toLocaleString()}
+                    </div>
+                    <div className="row-actions" style={{gridColumn: 'span 1'}}>
+                      {item.is_custom && (
+                        <button className="action-btn delete" onClick={() => handleDelete(item.id)} title="Delete Payload">
+                          <span className="material-symbols-outlined text-[18px]">delete</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
 
           <div className="table-footer">
-            <span className="font-body text-muted" style={{fontSize: '12px'}}>Showing 1 to 4 of 4,892 entries</span>
-            <div className="pagination">
-              <button className="page-btn icon-btn" disabled><span className="material-symbols-outlined text-[20px]">chevron_left</span></button>
-              <button className="page-btn active">1</button>
-              <button className="page-btn">2</button>
-              <button className="page-btn">3</button>
-              <span className="text-muted" style={{padding: '0 8px'}}>...</span>
-              <button className="page-btn icon-btn"><span className="material-symbols-outlined text-[20px]">chevron_right</span></button>
-            </div>
+            <span className="font-body text-muted" style={{fontSize: '12px'}}>
+              Showing {displayedPayloads.length} of {payloads.length} entries
+            </span>
           </div>
         </div>
       </div>

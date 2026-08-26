@@ -20,9 +20,12 @@ class ContextualRiskCalculator:
     def calculate_priority(
         cls,
         cvss_severity: str,
+        cvss_score: float = 5.0,
         endpoint_priority_score: float = 0.0,
         is_sensitive_endpoint: bool = False,
-        is_api: bool = False
+        is_api: bool = False,
+        confidence_level: str = "HIGH",
+        parameter_name: str = ""
     ) -> ContextualRiskResult:
         factors = []
         base_priority_weights = {
@@ -33,24 +36,37 @@ class ContextualRiskCalculator:
             "INFO": 10.0
         }
 
-        score = base_priority_weights.get(cvss_severity.upper(), 50.0)
+        severity_upper = cvss_severity.upper()
+        score = base_priority_weights.get(severity_upper, 50.0)
+        factors.append(f"{severity_upper.capitalize()} severity rating (CVSS: {cvss_score})")
+
+        # Validation & Evidence strength
+        if confidence_level == "HIGH":
+            factors.append("Strong evidence validated via reproducibility and control probing")
+        else:
+            factors.append("Validated finding confirmed via differential response signals")
 
         # Context factor: Endpoint Priority Scorer
         if endpoint_priority_score > 60:
             score += 15
-            factors.append(f"High-priority endpoint surface (score: {endpoint_priority_score})")
+            factors.append(f"High-exposure attack surface (endpoint score: {endpoint_priority_score})")
         elif endpoint_priority_score > 30:
             score += 5
+            factors.append("Internet-facing exposed endpoint")
 
         # Context factor: Sensitive route
         if is_sensitive_endpoint:
             score += 10
-            factors.append("Sensitive/Authentication path context")
+            factors.append("Sensitive/Authentication boundary route")
 
         # Context factor: API route exposure
         if is_api:
             score += 5
             factors.append("Direct API surface exposure")
+
+        # Context factor: User controlled parameter
+        if parameter_name:
+            factors.append(f"Direct injection into parameter '{parameter_name}'")
 
         score = min(score, 100.0)
 

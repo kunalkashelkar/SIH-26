@@ -81,6 +81,7 @@ class ResponseAnalyzer:
                 test_id=test.test_id,
                 scan_id=self.scan_id,
                 endpoint_id=test.endpoint_id,
+                parameter_id=test.parameter_id,
                 parameter_name=test.parameter_name,
                 category=test.category,
                 payload=test.payload,

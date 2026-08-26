@@ -19,12 +19,7 @@ export default function AttackSurface() {
     async function loadData() {
       setLoading(true);
       try {
-        let currentScanId = scanId;
-        // If no scanId in URL, query latest or fallback
-        if (!currentScanId) {
-          // fetch mock or try demo
-          currentScanId = 'latest';
-        }
+        let currentScanId = scanId || localStorage.getItem('last_active_scan_id') || 'latest';
         
         const [graphRes, priorityRes] = await Promise.allSettled([
           scanService.getScanGraph(currentScanId),
@@ -57,26 +52,29 @@ export default function AttackSurface() {
     const tiers: Record<string, GraphNode[]> = {
       TARGET: [],
       DOMAIN: [],
-      SUBDOMAIN_API: [],
+      SUBDOMAIN_VHOST_API: [],
       ENDPOINT: [],
-      PARAMETER: []
+      PARAMETER: [],
+      FINDING: []
     };
 
     graphData.nodes.forEach(node => {
       if (node.type === 'TARGET') tiers.TARGET.push(node);
       else if (node.type === 'DOMAIN') tiers.DOMAIN.push(node);
-      else if (node.type === 'SUBDOMAIN' || node.type === 'API') tiers.SUBDOMAIN_API.push(node);
+      else if (node.type === 'SUBDOMAIN' || node.type === 'VIRTUAL_HOST' || node.type === 'API') tiers.SUBDOMAIN_VHOST_API.push(node);
       else if (node.type === 'ENDPOINT') tiers.ENDPOINT.push(node);
       else if (node.type === 'PARAMETER') tiers.PARAMETER.push(node);
+      else if (node.type === 'FINDING') tiers.FINDING.push(node);
       else tiers.ENDPOINT.push(node);
     });
 
     const tierX: Record<string, number> = {
-      TARGET: 10,
-      DOMAIN: 25,
-      SUBDOMAIN_API: 45,
-      ENDPOINT: 70,
-      PARAMETER: 90
+      TARGET: 8,
+      DOMAIN: 22,
+      SUBDOMAIN_VHOST_API: 38,
+      ENDPOINT: 58,
+      PARAMETER: 78,
+      FINDING: 93
     };
 
     const nodePosMap = new Map<string, { node: GraphNode; x: number; y: number }>();
@@ -85,8 +83,8 @@ export default function AttackSurface() {
       const x = tierX[tierKey];
       const count = nodeList.length;
       nodeList.forEach((node, idx) => {
-        // distribute vertically between 15% and 85%
-        const y = count === 1 ? 50 : 15 + (idx / Math.max(count - 1, 1)) * 70;
+        // distribute vertically between 12% and 88%
+        const y = count === 1 ? 50 : 12 + (idx / Math.max(count - 1, 1)) * 76;
         nodePosMap.set(node.id, { node, x, y });
       });
     });
@@ -125,13 +123,15 @@ export default function AttackSurface() {
 
   const getNodeIcon = (type: string) => {
     switch (type) {
-      case 'TARGET': return 'language';
-      case 'DOMAIN': return 'globe';
-      case 'SUBDOMAIN': return 'dns';
+      case 'TARGET': return 'public';
+      case 'DOMAIN': return 'language';
+      case 'SUBDOMAIN': return 'alt_route';
+      case 'VIRTUAL_HOST': return 'dns';
       case 'API': return 'api';
-      case 'ENDPOINT': return 'data_object';
-      case 'PARAMETER': return 'pin';
-      default: return 'hub';
+      case 'ENDPOINT': return 'link';
+      case 'PARAMETER': return 'data_object';
+      case 'FINDING': return 'bug_report';
+      default: return 'circle';
     }
   };
 
@@ -152,9 +152,10 @@ export default function AttackSurface() {
     total_edges: graphData?.edges?.length || 0
   };
 
-  const endpointCount = stats.node_counts_by_type?.ENDPOINT || 0;
-  const apiCount = stats.node_counts_by_type?.API || 0;
-  const paramCount = stats.node_counts_by_type?.PARAMETER || 0;
+  const nodeCounts = (stats.node_counts_by_type as Record<string, number>) || {};
+  const endpointCount = nodeCounts['ENDPOINT'] || 0;
+  const apiCount = nodeCounts['API'] || 0;
+  const paramCount = nodeCounts['PARAMETER'] || 0;
   const nodeCount = stats.total_nodes || graphData?.nodes?.length || 0;
 
   const targetLabel = graphData?.nodes?.find(n => n.type === 'TARGET')?.metadata?.base_url || 'Target Assets';
@@ -193,7 +194,7 @@ export default function AttackSurface() {
           <button 
             className="btn-outline" 
             onClick={() => {
-              const types = ['ALL', 'ENDPOINT', 'API', 'SUBDOMAIN', 'PARAMETER'];
+              const types = ['ALL', 'ENDPOINT', 'API', 'SUBDOMAIN', 'PARAMETER', 'FINDING'];
               const nextIdx = (types.indexOf(filterType) + 1) % types.length;
               setFilterType(types[nextIdx]);
             }}

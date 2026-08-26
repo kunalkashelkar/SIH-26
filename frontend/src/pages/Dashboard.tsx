@@ -1,43 +1,89 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { scanService, FindingItem } from '../services/api';
+import { scanService, findingService, FindingItem, ScanListItem, DashboardMetrics } from '../services/api';
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [scans, setScans] = useState<ScanListItem[]>([]);
   const [findings, setFindings] = useState<FindingItem[]>([]);
-  const [stats, setStats] = useState<any>(null);
+  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     async function loadDashboard() {
-      const activeScanId = localStorage.getItem('last_active_scan_id');
-      if (activeScanId) {
-        try {
-          const [fList, scanStats] = await Promise.all([
-            scanService.getScanFindings(activeScanId).catch(() => []),
-            scanService.getScanStatistics(activeScanId).catch(() => null)
-          ]);
-          if (fList && fList.length > 0) setFindings(fList);
-          if (scanStats) setStats(scanStats);
-        } catch (e) {
-          console.warn("Dashboard fetch:", e);
-        }
+      try {
+        setLoading(true);
+        const [scanList, findingList, dbMetrics] = await Promise.all([
+          scanService.getScans(5).catch(() => []),
+          findingService.getFindings({ limit: 4 }).catch(() => []),
+          scanService.getDashboardMetrics().catch(() => null)
+        ]);
+        setScans(scanList);
+        setFindings(findingList);
+        setMetrics(dbMetrics);
+      } catch (e) {
+        console.warn("Dashboard fetch error:", e);
+      } finally {
+        setLoading(false);
       }
     }
     loadDashboard();
   }, []);
 
-  const critCount = stats ? stats.critical_findings : findings.filter(f => f.severity === 'CRITICAL').length;
-  const highCount = stats ? stats.high_findings : findings.filter(f => f.severity === 'HIGH').length;
-  const medCount = stats ? stats.medium_findings : findings.filter(f => f.severity === 'MEDIUM').length;
-  const lowCount = stats ? stats.low_findings : findings.filter(f => f.severity === 'LOW').length;
-  const totalFindings = stats ? stats.total_findings : findings.length;
+  const totalFindings = metrics ? metrics.total_findings : findings.length;
+  const critCount = metrics ? metrics.critical_findings : findings.filter(f => f.severity === 'CRITICAL').length;
+  const highCount = metrics ? metrics.high_findings : findings.filter(f => f.severity === 'HIGH').length;
+  const medCount = metrics ? metrics.medium_findings : findings.filter(f => f.severity === 'MEDIUM').length;
+  const lowCount = metrics ? metrics.low_findings : findings.filter(f => f.severity === 'LOW').length;
+  const resolvedCount = metrics ? metrics.resolved_findings : findings.filter(f => f.status === 'verified_fixed').length;
+
+  const activeScansCount = metrics ? metrics.running_scans : scans.filter(s => s.status === 'RUNNING' || s.status === 'QUEUED').length;
+  const totalEndpoints = metrics ? metrics.total_endpoints : 0;
+  const totalParameters = metrics ? metrics.total_parameters : 0;
+  const riskScore = metrics ? metrics.risk_score : 0.0;
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return 'Recently';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const getStatusBadge = (status: string, progress: number) => {
+    const s = status.toUpperCase();
+    if (s === 'RUNNING') {
+      return (
+        <span className="status-badge badge-primary">
+          <span className="status-dot pulse"></span> Running ({progress}%)
+        </span>
+      );
+    }
+    if (s === 'COMPLETED') {
+      return (
+        <span className="status-badge badge-secondary">
+          <span className="status-dot"></span> Completed
+        </span>
+      );
+    }
+    if (s === 'FAILED') {
+      return (
+        <span className="status-badge badge-error">
+          <span className="status-dot"></span> Failed
+        </span>
+      );
+    }
+    return (
+      <span className="status-badge badge-gray">
+        <span className="status-dot"></span> {status}
+      </span>
+    );
+  };
 
   return (
     <div className="page-container">
       <div className="page-header">
         <div>
           <h1 className="page-title">Dashboard</h1>
-          <p className="page-subtitle">Overview of your application's security posture.</p>
+          <p className="page-subtitle">Real-time overview of your application security posture.</p>
         </div>
         <button className="btn-primary-small font-caps" onClick={() => navigate('/scans/new')}>
           <span className="material-symbols-outlined">add</span>
@@ -51,10 +97,10 @@ export default function Dashboard() {
             <span className="kpi-label">Active Scans</span>
             <span className="material-symbols-outlined text-primary">manage_search</span>
           </div>
-          <div className="kpi-value">{stats ? '1' : '0'}</div>
+          <div className="kpi-value">{activeScansCount}</div>
           <div className="kpi-trend text-secondary">
             <span className="material-symbols-outlined icon-small">check_circle</span>
-            <span>{stats ? stats.status : 'System ready'}</span>
+            <span>{activeScansCount > 0 ? `${activeScansCount} running` : 'System ready'}</span>
           </div>
         </div>
 
@@ -63,10 +109,10 @@ export default function Dashboard() {
             <span className="kpi-label">Endpoints</span>
             <span className="material-symbols-outlined text-secondary">hub</span>
           </div>
-          <div className="kpi-value">{stats ? stats.total_endpoints : 0}</div>
+          <div className="kpi-value">{totalEndpoints}</div>
           <div className="kpi-trend text-muted">
             <span className="material-symbols-outlined icon-small">sync</span>
-            <span>{stats ? `${stats.total_parameters} parameters` : 'Discovered via crawler'}</span>
+            <span>{totalParameters > 0 ? `${totalParameters} parameters` : 'Discovered via crawler'}</span>
           </div>
         </div>
 
@@ -78,7 +124,7 @@ export default function Dashboard() {
           <div className="kpi-value">{totalFindings}</div>
           <div className="kpi-trend text-error">
             <span className="material-symbols-outlined icon-small">warning</span>
-            <span>{stats ? `${stats.verified_fixes} verified fixed` : 'Real DB findings'}</span>
+            <span>{resolvedCount > 0 ? `${resolvedCount} verified fixed` : 'PostgreSQL validated'}</span>
           </div>
         </div>
 
@@ -88,13 +134,13 @@ export default function Dashboard() {
             <span className="material-symbols-outlined text-tertiary">health_and_safety</span>
           </div>
           <div className="kpi-value text-tertiary">
-            {totalFindings > 0 ? (critCount > 0 ? '8.5' : highCount > 0 ? '6.8' : '4.2') : '0.0'}
+            {riskScore.toFixed(1)}
             <span className="kpi-subtext">/10</span>
           </div>
           <div className="kpi-progress-bar">
             <div 
               className="kpi-progress-fill bg-tertiary" 
-              style={{width: totalFindings > 0 ? (critCount > 0 ? '85%' : highCount > 0 ? '68%' : '42%') : '0%'}}
+              style={{width: `${Math.min(riskScore * 10, 100)}%`}}
             ></div>
           </div>
         </div>
@@ -110,7 +156,10 @@ export default function Dashboard() {
               <div className="risk-row">
                 <div className="risk-label">CRITICAL</div>
                 <div className="risk-bar-container">
-                  <div className="risk-bar bg-error" style={{width: `${Math.max(critCount * 30, 5)}%`}}></div>
+                  <div 
+                    className="risk-bar bg-error" 
+                    style={{width: totalFindings > 0 ? `${Math.max((critCount / totalFindings) * 100, critCount > 0 ? 5 : 0)}%` : '0%'}}
+                  ></div>
                   <span className="risk-count">{critCount}</span>
                 </div>
               </div>
@@ -118,7 +167,10 @@ export default function Dashboard() {
               <div className="risk-row">
                 <div className="risk-label">HIGH</div>
                 <div className="risk-bar-container">
-                  <div className="risk-bar bg-tertiary" style={{width: `${Math.max(highCount * 30, 5)}%`}}></div>
+                  <div 
+                    className="risk-bar bg-tertiary" 
+                    style={{width: totalFindings > 0 ? `${Math.max((highCount / totalFindings) * 100, highCount > 0 ? 5 : 0)}%` : '0%'}}
+                  ></div>
                   <span className="risk-count">{highCount}</span>
                 </div>
               </div>
@@ -126,7 +178,10 @@ export default function Dashboard() {
               <div className="risk-row">
                 <div className="risk-label">MEDIUM</div>
                 <div className="risk-bar-container">
-                  <div className="risk-bar bg-primary" style={{width: `${Math.max(medCount * 40, 15)}%`}}></div>
+                  <div 
+                    className="risk-bar bg-primary" 
+                    style={{width: totalFindings > 0 ? `${Math.max((medCount / totalFindings) * 100, medCount > 0 ? 5 : 0)}%` : '0%'}}
+                  ></div>
                   <span className="risk-count">{medCount}</span>
                 </div>
               </div>
@@ -134,14 +189,17 @@ export default function Dashboard() {
               <div className="risk-row">
                 <div className="risk-label">LOW</div>
                 <div className="risk-bar-container">
-                  <div className="risk-bar bg-secondary" style={{width: `${Math.max(lowCount * 30, 5)}%`}}></div>
+                  <div 
+                    className="risk-bar bg-secondary" 
+                    style={{width: totalFindings > 0 ? `${Math.max((lowCount / totalFindings) * 100, lowCount > 0 ? 5 : 0)}%` : '0%'}}
+                  ></div>
                   <span className="risk-count">{lowCount}</span>
                 </div>
               </div>
               
             </div>
             <div className="card-footer">
-              <span>Total Confirmed Findings: {findings.length}</span>
+              <span>Total Confirmed Findings: {totalFindings}</span>
               <span>PostgreSQL-backed</span>
             </div>
           </div>
@@ -149,7 +207,7 @@ export default function Dashboard() {
           <div className="card no-padding">
             <div className="card-header-flex">
               <h2 className="card-title m-0">Recent Scans</h2>
-              <button className="btn-link font-caps">
+              <button className="btn-link font-caps" onClick={() => navigate('/scans')}>
                 VIEW ALL <span className="material-symbols-outlined icon-small">arrow_forward</span>
               </button>
             </div>
@@ -166,56 +224,46 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td className="font-mono">example.com</td>
-                    <td>
-                      <span className="status-badge badge-secondary">
-                        <span className="status-dot"></span> Completed
-                      </span>
-                    </td>
-                    <td className="text-center font-mono">12</td>
-                    <td className="text-muted font-mono-sm">Today, 10:23 AM</td>
-                    <td className="text-right">
-                      <div className="table-actions">
-                        <button className="btn-icon-small" title="View Report" onClick={() => navigate('/scans/demo-1/findings')}><span className="material-symbols-outlined icon-small">visibility</span></button>
-                        <button className="btn-icon-small" title="Re-scan" onClick={() => navigate('/scans/new')}><span className="material-symbols-outlined icon-small">replay</span></button>
-                      </div>
-                    </td>
-                  </tr>
-                  
-                  <tr>
-                    <td className="font-mono">api.test.io</td>
-                    <td>
-                      <span className="status-badge badge-primary">
-                        <span className="status-dot pulse"></span> Running (45%)
-                      </span>
-                    </td>
-                    <td className="text-center font-mono">4</td>
-                    <td className="text-muted font-mono-sm">Today, 09:15 AM</td>
-                    <td className="text-right">
-                      <div className="table-actions">
-                        <button className="btn-icon-small" title="View Progress" onClick={() => navigate('/scans/demo-2/progress')}><span className="material-symbols-outlined icon-small">visibility</span></button>
-                        <button className="btn-icon-small text-error" title="Stop Scan"><span className="material-symbols-outlined icon-small">stop_circle</span></button>
-                      </div>
-                    </td>
-                  </tr>
-                  
-                  <tr>
-                    <td className="font-mono">demo.app</td>
-                    <td>
-                      <span className="status-badge badge-error">
-                        <span className="status-dot"></span> Failed
-                      </span>
-                    </td>
-                    <td className="text-center font-mono text-muted">-</td>
-                    <td className="text-muted font-mono-sm">Yesterday</td>
-                    <td className="text-right">
-                      <div className="table-actions">
-                        <button className="btn-icon-small" title="View Logs"><span className="material-symbols-outlined icon-small">subject</span></button>
-                        <button className="btn-icon-small" title="Resume/Retry"><span className="material-symbols-outlined icon-small">play_arrow</span></button>
-                      </div>
-                    </td>
-                  </tr>
+                  {scans.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} style={{textAlign: 'center', padding: '32px', color: 'var(--color-on-surface-variant)'}}>
+                        No scans recorded yet. Click "NEW SCAN" to initiate security discovery.
+                      </td>
+                    </tr>
+                  ) : (
+                    scans.map((scan) => (
+                      <tr key={scan.id}>
+                        <td className="font-mono">{scan.target_url}</td>
+                        <td>{getStatusBadge(scan.status, scan.progress)}</td>
+                        <td className="text-center font-mono">{scan.total_findings}</td>
+                        <td className="text-muted font-mono-sm">{formatDate(scan.started_at)}</td>
+                        <td className="text-right">
+                          <div className="table-actions">
+                            <button 
+                              className="btn-icon-small" 
+                              title="View Findings" 
+                              onClick={() => {
+                                localStorage.setItem('last_active_scan_id', scan.id);
+                                navigate(`/scans/${scan.id}/findings`);
+                              }}
+                            >
+                              <span className="material-symbols-outlined icon-small">visibility</span>
+                            </button>
+                            <button 
+                              className="btn-icon-small" 
+                              title="View Progress / Logs" 
+                              onClick={() => {
+                                localStorage.setItem('last_active_scan_id', scan.id);
+                                navigate(`/scans/${scan.id}/progress`);
+                              }}
+                            >
+                              <span className="material-symbols-outlined icon-small">radar</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

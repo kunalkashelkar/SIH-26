@@ -5,6 +5,7 @@ class FuzzTestResult(BaseModel):
     test_id: str
     scan_id: str
     endpoint_id: str
+    parameter_id: Optional[str] = None
     parameter_name: str
     category: str
     payload: str

@@ -1,8 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { projectService, ProjectItem } from '../services/api';
 import './Settings.css';
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('general');
+  const [projects, setProjects] = useState<ProjectItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    projectService.getProjects()
+      .then(data => {
+        setProjects(data);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const currentProject = projects[0] || null;
 
   return (
     <div className="settings-container">
@@ -56,19 +70,22 @@ export default function Settings() {
                 <div className="flex flex-col gap-6">
                   <div className="form-group">
                     <label className="form-label">Project Name</label>
-                    <input type="text" className="form-input" defaultValue="Alpha Sentinel Sec" />
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      value={currentProject?.name || 'Default Security Workspace'} 
+                      readOnly 
+                    />
                   </div>
                   
                   <div className="form-group">
-                    <label className="form-label">Default Scan Profile</label>
-                    <div className="form-select-wrapper">
-                      <select className="form-select">
-                        <option>Comprehensive OWASP Top 10</option>
-                        <option>Lightweight CI/CD Pass</option>
-                        <option>Deep Fuzzing Mode</option>
-                      </select>
-                      <span className="material-symbols-outlined">expand_more</span>
-                    </div>
+                    <label className="form-label">Project Description</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      value={currentProject?.description || 'Active vulnerability assessment workspace.'} 
+                      readOnly 
+                    />
                   </div>
 
                   <div className="form-group" style={{marginTop: '16px'}}>

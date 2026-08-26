@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
-from app.models.models import Endpoint, Parameter
+from app.models.models import Endpoint, Parameter, FuzzResult, ScanLog, PayloadItem
 from app.scanner.http_client import ResilientHttpClient
 from app.scanner.context.parameter_context import ParameterContextExtractor, ParameterContext
 from app.scanner.context.test_selector import TestSelector
@@ -14,7 +14,7 @@ from app.scanner.fuzzer.result import FuzzTestResult
 
 logger = logging.getLogger(__name__)
 
-# In-memory store for recent scan fuzz results (for API responses)
+# In-memory caches for fast retrieval
 SCAN_FUZZ_RESULTS: dict[str, list[FuzzTestResult]] = {}
 SCAN_CONTEXTS: dict[str, list[ParameterContext]] = {}
 
@@ -68,20 +68,25 @@ class FuzzingEngine:
                 break
 
             for param in ep.parameters:
-                # 2. Extract context
                 ctx = ParameterContextExtractor.extract_context(param, ep)
-                # 3. Select appropriate tests
                 TestSelector.select_tests(ctx)
                 all_contexts.append(ctx)
 
-                # 4. Generate targeted test cases
                 test_cases = PayloadManager.generate_tests_for_parameter(self.scan_id, ep, ctx)
                 all_test_cases.extend(test_cases)
 
         SCAN_CONTEXTS[self.scan_id] = all_contexts
         logger.info(f"Generated {len(all_test_cases)} targeted test cases for scan {self.scan_id}")
 
-        # 5. Execute test cases asynchronously
+        # Log to DB
+        self.db.add(ScanLog(
+            scan_id=self.scan_id,
+            level="INFO",
+            message=f"[INFO] Generated {len(all_test_cases)} adaptive test cases across {len(endpoints)} endpoints."
+        ))
+        await self.db.commit()
+
+        # 2. Execute test cases asynchronously and persist to DB
         results: list[FuzzTestResult] = []
         for test in all_test_cases:
             if cancel_event.is_set():
@@ -91,8 +96,38 @@ class FuzzingEngine:
             result = await self.executor.execute_test(test, cancel_event)
             results.append(result)
             
+            # Persist FuzzResult to DB
+            db_fuzz = FuzzResult(
+                scan_id=self.scan_id,
+                endpoint_id=test.endpoint_id,
+                parameter_id=test.parameter_id,
+                test_id=test.test_id,
+                category=test.category,
+                payload=test.payload,
+                status_code=result.status_code,
+                response_time_ms=result.response_time_ms or 0.0,
+                anomaly_detected=result.is_anomaly,
+                details=result.anomaly_reason or ("Passed baseline checks" if not result.is_anomaly else "Anomaly observed")
+            )
+            self.db.add(db_fuzz)
+
+            # Update payload usage count
+            p_res = await self.db.execute(select(PayloadItem).where(PayloadItem.payload == test.payload))
+            payload_item = p_res.scalars().first()
+            if payload_item:
+                payload_item.usage_count = (payload_item.usage_count or 0) + 1
+                if result.is_anomaly:
+                    payload_item.success_count = (payload_item.success_count or 0) + 1
+
             if result.is_anomaly:
                 logger.info(f"Anomaly detected on {test.parameter_name} ({test.category}): {result.anomaly_reason}")
+                self.db.add(ScanLog(
+                    scan_id=self.scan_id,
+                    level="WARN",
+                    message=f"[WARN] Anomaly detected on {test.target_url}?{test.parameter_name} ({test.category}): {result.anomaly_reason}"
+                ))
+
+        await self.db.commit()
 
         SCAN_FUZZ_RESULTS[self.scan_id] = results
         logger.info(f"Fuzzing engine completed {len(results)} tests for scan {self.scan_id}")

@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
-from app.models.models import Scan, Target, Endpoint, Parameter, Subdomain
+from app.models.models import Scan, Target, Endpoint, Parameter, Subdomain, VirtualHost, Finding
 
 logger = logging.getLogger(__name__)
 
@@ -13,17 +13,23 @@ class NodeType:
     TARGET = "TARGET"
     DOMAIN = "DOMAIN"
     SUBDOMAIN = "SUBDOMAIN"
+    VIRTUAL_HOST = "VIRTUAL_HOST"
     API = "API"
     ENDPOINT = "ENDPOINT"
     PARAMETER = "PARAMETER"
+    FINDING = "FINDING"
 
 class EdgeType:
     TARGET_TO_DOMAIN = "HAS_DOMAIN"
     DOMAIN_TO_SUBDOMAIN = "HAS_SUBDOMAIN"
+    DOMAIN_TO_VHOST = "HAS_VIRTUAL_HOST"
     DOMAIN_TO_ENDPOINT = "HAS_ENDPOINT"
     SUBDOMAIN_TO_ENDPOINT = "HAS_ENDPOINT"
+    VHOST_TO_ENDPOINT = "HAS_ENDPOINT"
     API_TO_ENDPOINT = "DEFINES_ENDPOINT"
     ENDPOINT_TO_PARAMETER = "HAS_PARAMETER"
+    ENDPOINT_TO_FINDING = "HAS_FINDING"
+    PARAMETER_TO_FINDING = "HAS_FINDING"
 
 class AttackSurfaceGraphBuilder:
     def __init__(self, db: AsyncSession, scan_id: str):
@@ -33,7 +39,7 @@ class AttackSurfaceGraphBuilder:
 
     async def build(self) -> nx.DiGraph:
         """
-        Loads all discovered scan assets and builds a NetworkX DiGraph.
+        Loads all discovered scan assets and verified findings, building a complete NetworkX DiGraph.
         """
         logger.info(f"Building NetworkX attack surface graph for scan {self.scan_id}")
         self.graph.clear()
@@ -120,12 +126,41 @@ class AttackSurfaceGraphBuilder:
                 metadata={"ip_address": sub.ip_address}
             )
 
-        # 3. Create API collection nodes if APIs are present
-        # API collections can group API endpoints (e.g., OpenAPI definitions or /api paths)
+        # 3. Fetch Virtual Hosts
+        stmt_vhost = select(VirtualHost).where(VirtualHost.scan_id == self.scan_id)
+        res_vhost = await self.db.execute(stmt_vhost)
+        vhosts = res_vhost.scalars().all()
+
+        vhost_nodes = {}
+        for vh in vhosts:
+            vh_node_id = f"vhost_{vh.id}"
+            vhost_nodes[vh.host] = vh_node_id
+            self.graph.add_node(
+                vh_node_id,
+                id=vh_node_id,
+                type=NodeType.VIRTUAL_HOST,
+                label=vh.host,
+                metadata={
+                    "vhost_id": vh.id,
+                    "host": vh.host,
+                    "ip_address": vh.ip_address,
+                    "status_code": vh.status_code,
+                    "is_active": vh.is_active
+                }
+            )
+            parent_dom = subdomain_nodes.get(vh.host, domain_node_id)
+            self.graph.add_edge(
+                parent_dom,
+                vh_node_id,
+                relationship=EdgeType.DOMAIN_TO_VHOST,
+                metadata={}
+            )
+
+        # 4. Create API collection nodes if APIs are present
         api_root_node_id = f"api_group_{self.scan_id}"
         has_api_nodes = False
 
-        # 4. Fetch Endpoints & Parameters
+        # 5. Fetch Endpoints & Parameters
         stmt_ep = (
             select(Endpoint)
             .options(selectinload(Endpoint.parameters))
@@ -134,8 +169,12 @@ class AttackSurfaceGraphBuilder:
         res_ep = await self.db.execute(stmt_ep)
         endpoints = res_ep.scalars().all()
 
+        endpoint_node_map = {}
+        param_node_map = {}
+
         for ep in endpoints:
             ep_node_id = f"endpoint_{ep.id}"
+            endpoint_node_map[ep.id] = ep_node_id
             ep_label = f"{ep.method} {ep.path}"
 
             self.graph.add_node(
@@ -157,14 +196,20 @@ class AttackSurfaceGraphBuilder:
                 }
             )
 
-            # Determine parent host (domain or subdomain)
+            # Determine parent host (domain, subdomain, or vhost)
             ep_parsed = urllib.parse.urlparse(ep.url)
             ep_host = ep_parsed.hostname or root_domain_name
 
-            parent_host_node = subdomain_nodes.get(ep_host, domain_node_id)
-            
-            # Edge: DOMAIN or SUBDOMAIN -> ENDPOINT
-            rel_type = EdgeType.SUBDOMAIN_TO_ENDPOINT if parent_host_node != domain_node_id else EdgeType.DOMAIN_TO_ENDPOINT
+            if ep_host in vhost_nodes:
+                parent_host_node = vhost_nodes[ep_host]
+                rel_type = EdgeType.VHOST_TO_ENDPOINT
+            elif ep_host in subdomain_nodes:
+                parent_host_node = subdomain_nodes[ep_host]
+                rel_type = EdgeType.SUBDOMAIN_TO_ENDPOINT
+            else:
+                parent_host_node = domain_node_id
+                rel_type = EdgeType.DOMAIN_TO_ENDPOINT
+
             self.graph.add_edge(
                 parent_host_node,
                 ep_node_id,
@@ -182,7 +227,6 @@ class AttackSurfaceGraphBuilder:
                         label="REST / OpenAPI Specification",
                         metadata={"scan_id": self.scan_id}
                     )
-                    # Connect Target/Domain to API
                     self.graph.add_edge(
                         domain_node_id,
                         api_root_node_id,
@@ -191,7 +235,6 @@ class AttackSurfaceGraphBuilder:
                     )
                     has_api_nodes = True
 
-                # Edge: API -> ENDPOINT
                 self.graph.add_edge(
                     api_root_node_id,
                     ep_node_id,
@@ -199,9 +242,10 @@ class AttackSurfaceGraphBuilder:
                     metadata={"method": ep.method, "path": ep.path}
                 )
 
-            # 5. Parameters
+            # Parameters
             for param in ep.parameters:
                 param_node_id = f"param_{param.id}"
+                param_node_map[param.id] = param_node_id
                 param_label = f"{param.location}:{param.name}"
 
                 self.graph.add_node(
@@ -217,12 +261,61 @@ class AttackSurfaceGraphBuilder:
                     }
                 )
 
-                # Edge: ENDPOINT -> PARAMETER
                 self.graph.add_edge(
                     ep_node_id,
                     param_node_id,
                     relationship=EdgeType.ENDPOINT_TO_PARAMETER,
                     metadata={"location": param.location}
+                )
+
+        # 6. Fetch Confirmed Findings & Link to Endpoints / Parameters
+        stmt_findings = select(Finding).where(Finding.scan_id == self.scan_id)
+        res_findings = await self.db.execute(stmt_findings)
+        findings = res_findings.scalars().all()
+
+        for f in findings:
+            finding_node_id = f"finding_{f.id}"
+            finding_label = f"{f.severity}: {f.vulnerability_type}"
+
+            self.graph.add_node(
+                finding_node_id,
+                id=finding_node_id,
+                type=NodeType.FINDING,
+                label=finding_label,
+                metadata={
+                    "finding_id": f.id,
+                    "vulnerability_type": f.vulnerability_type,
+                    "severity": f.severity,
+                    "confidence": f.confidence,
+                    "priority": f.priority,
+                    "cwe": f.cwe,
+                    "owasp_category": f.owasp_category,
+                    "status": f.status
+                }
+            )
+
+            # Connect finding to Parameter if available, otherwise Endpoint
+            if f.parameter_id and f.parameter_id in param_node_map:
+                self.graph.add_edge(
+                    param_node_map[f.parameter_id],
+                    finding_node_id,
+                    relationship=EdgeType.PARAMETER_TO_FINDING,
+                    metadata={"severity": f.severity}
+                )
+            elif f.endpoint_id and f.endpoint_id in endpoint_node_map:
+                self.graph.add_edge(
+                    endpoint_node_map[f.endpoint_id],
+                    finding_node_id,
+                    relationship=EdgeType.ENDPOINT_TO_FINDING,
+                    metadata={"severity": f.severity}
+                )
+            else:
+                # Fallback to domain node
+                self.graph.add_edge(
+                    domain_node_id,
+                    finding_node_id,
+                    relationship="HAS_FINDING",
+                    metadata={"severity": f.severity}
                 )
 
         logger.info(

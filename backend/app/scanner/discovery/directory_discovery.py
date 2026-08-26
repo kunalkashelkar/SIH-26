@@ -40,22 +40,29 @@ class DirectoryDiscoverer:
             
         url = urllib.parse.urljoin(self.target_url, path)
         try:
-            # We use GET here so we can capture the content type, HEAD might not be enough
             resp = await self.client._request("GET", url)
             if resp and resp.status_code in [200, 401, 403]:
-                # Found something interesting
-                ep = Endpoint(
-                    scan_id=self.scan_id,
-                    url=url,
-                    path='/' + path.strip('/'),
-                    method="GET",
-                    status_code=resp.status_code,
-                    content_type=resp.headers.get("Content-Type", ""),
-                    depth=1,
-                    discovered_from="directory_bruteforce",
-                    is_api=False
+                norm_path = '/' + path.strip('/')
+                stmt = select(Endpoint).where(
+                    Endpoint.scan_id == self.scan_id,
+                    Endpoint.url == url,
+                    Endpoint.method == "GET"
                 )
-                self.db.add(ep)
+                res = await self.db.execute(stmt)
+                existing = res.scalar_one_or_none()
+                if not existing:
+                    ep = Endpoint(
+                        scan_id=self.scan_id,
+                        url=url,
+                        path=norm_path,
+                        method="GET",
+                        status_code=resp.status_code,
+                        content_type=resp.headers.get("Content-Type", ""),
+                        depth=1,
+                        discovered_from="directory_bruteforce",
+                        is_api=False
+                    )
+                    self.db.add(ep)
         except Exception as e:
             logger.debug(f"Dir discovery error on {url}: {e}")
 

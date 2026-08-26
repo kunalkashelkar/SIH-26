@@ -49,13 +49,20 @@ class SubdomainDiscoverer:
             ip_addr = res[0][4][0] if res else None
             
             if ip_addr:
-                sub_record = Subdomain(
-                    scan_id=self.scan_id,
-                    domain=fqdn,
-                    ip_address=ip_addr,
-                    is_alive=True
+                from sqlalchemy.future import select
+                stmt = select(Subdomain).where(
+                    Subdomain.scan_id == self.scan_id,
+                    Subdomain.domain == fqdn
                 )
-                self.db.add(sub_record)
+                existing = (await self.db.execute(stmt)).scalar_one_or_none()
+                if not existing:
+                    sub_record = Subdomain(
+                        scan_id=self.scan_id,
+                        domain=fqdn,
+                        ip_address=ip_addr,
+                        is_alive=True
+                    )
+                    self.db.add(sub_record)
                 
         except socket.gaierror:
             # Did not resolve

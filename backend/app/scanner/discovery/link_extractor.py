@@ -30,12 +30,14 @@ class LinkExtractor:
                         inf_type = DiscoveredParameter.infer_type(val, k)
                         params.append(DiscoveredParameter(name=k, location="query", value_type=inf_type))
                         
+                is_api_endpoint = parsed.path.startswith('/api') or '/v1/' in parsed.path or '/v2/' in parsed.path
                 endpoints.append(DiscoveredEndpoint(
                     url=url,
                     path=parsed.path,
                     method="GET",
                     depth=depth + 1,
                     discovered_from=source_url,
+                    is_api=is_api_endpoint,
                     parameters=params
                 ))
 

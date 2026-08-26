@@ -21,9 +21,11 @@ export default function NewScan() {
         max_depth: crawlDepth,
         max_requests: reqLimit
       });
+      localStorage.setItem('last_active_scan_id', data.scan_id);
       navigate(`/scans/${data.scan_id}/progress`);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
+      alert(`Failed to start scan: ${error.message || error}`);
       setIsSubmitting(false);
     }
   };

@@ -1,37 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { scanService } from '../services/api';
+import { scanService, ScanListItem } from '../services/api';
 import './Reports.css';
 
 export default function Reports() {
-  const [stats, setStats] = useState<any>(null);
+  const [scans, setScans] = useState<ScanListItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [filterText, setFilterText] = useState<string>('');
   const [downloading, setDownloading] = useState<string | null>(null);
 
-  const activeScanId = localStorage.getItem('last_active_scan_id');
-
   useEffect(() => {
     async function loadReports() {
-      if (activeScanId) {
-        try {
-          setLoading(true);
-          const data = await scanService.getScanStatistics(activeScanId);
-          setStats(data);
-        } catch (e) {
-          console.warn("Reports stats fetch:", e);
-        } finally {
-          setLoading(false);
-        }
-      } else {
+      try {
+        setLoading(true);
+        const data = await scanService.getScans(50);
+        setScans(data);
+      } catch (e) {
+        console.warn("Reports scans fetch error:", e);
+      } finally {
         setLoading(false);
       }
     }
     loadReports();
-  }, [activeScanId]);
+  }, []);
 
   const handleDownloadPdf = async (scanId: string) => {
     try {
-      setDownloading(scanId);
+      setDownloading(`pdf-${scanId}`);
       const url = scanService.downloadPdfReportUrl(scanId);
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to download PDF report");
@@ -39,7 +33,7 @@ export default function Reports() {
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = `security_report_${scanId}.pdf`;
+      a.download = `security_report_${scanId.slice(0, 8)}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -52,18 +46,53 @@ export default function Reports() {
 
   const handleDownloadJson = async (scanId: string) => {
     try {
+      setDownloading(`json-${scanId}`);
       const data = await scanService.getScanJsonReport(scanId);
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = `security_report_${scanId}.json`;
+      a.download = `security_report_${scanId.slice(0, 8)}.json`;
       document.body.appendChild(a);
       a.click();
       a.remove();
     } catch (err: any) {
       alert(`JSON report fetch failed: ${err.message || err}`);
+    } finally {
+      setDownloading(null);
     }
+  };
+
+  const handleDownloadSarif = async (scanId: string) => {
+    try {
+      setDownloading(`sarif-${scanId}`);
+      const data = await scanService.getScanSarifReport(scanId);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `security_report_${scanId.slice(0, 8)}.sarif`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (err: any) {
+      alert(`SARIF report fetch failed: ${err.message || err}`);
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const displayedScans = scans.filter(s => 
+    !filterText || 
+    s.target_url.toLowerCase().includes(filterText.toLowerCase()) ||
+    s.status.toLowerCase().includes(filterText.toLowerCase()) ||
+    s.id.toLowerCase().includes(filterText.toLowerCase())
+  );
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return 'Recently';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   return (
@@ -88,138 +117,82 @@ export default function Reports() {
       </div>
 
       <div className="reports-grid">
-        {/* Real Scan Report Card */}
-        {stats && (
-          <div className="report-card group">
-            <div className="report-card-glow glow-primary"></div>
-            <div className="report-card-content">
-              <div className="report-header">
-                <div className="flex items-center gap-3">
-                  <div className="report-icon-box primary">
-                    <span className="material-symbols-outlined">description</span>
-                  </div>
-                  <div>
-                    <h3 className="report-title">{stats.target_url}</h3>
-                    <p className="report-date">Scan: {stats.scan_id.slice(0, 8)}... | Status: {stats.status}</p>
-                  </div>
-                </div>
-                <div className={`report-badge ${stats.total_findings > 0 ? 'badge-red' : 'badge-gray'}`}>
-                  <span className="material-symbols-outlined text-[14px]">
-                    {stats.total_findings > 0 ? 'warning' : 'check_circle'}
-                  </span>
-                  {stats.total_findings} Confirmed Findings
-                </div>
-              </div>
-              
-              <div className="report-divider"></div>
-              
-              <div className="report-actions">
-                <button className="btn-view" onClick={() => handleDownloadJson(stats.scan_id)}>
-                  <span className="material-symbols-outlined text-[16px]">visibility</span> View JSON
-                </button>
-                <div className="download-group">
-                  <button 
-                    className="btn-download" 
-                    title="Download PDF" 
-                    onClick={() => handleDownloadPdf(stats.scan_id)}
-                    disabled={downloading === stats.scan_id}
-                  >
-                    <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
-                  </button>
-                  <button 
-                    className="btn-download font-mono-sm" 
-                    title="Download JSON"
-                    onClick={() => handleDownloadJson(stats.scan_id)}
-                  >
-                    {'{ }'}
-                  </button>
-                </div>
-              </div>
-            </div>
+        {loading ? (
+          <div style={{gridColumn: 'span 3', padding: '32px', textAlign: 'center', color: 'var(--color-on-surface-variant)'}}>
+            Loading security reports...
           </div>
+        ) : displayedScans.length === 0 ? (
+          <div style={{gridColumn: 'span 3', padding: '32px', textAlign: 'center', color: 'var(--color-on-surface-variant)'}}>
+            No scan reports available. Start a scan to generate comprehensive audit reports.
+          </div>
+        ) : (
+          displayedScans.map((scan) => {
+            const hasFindings = scan.total_findings > 0;
+            const glowClass = scan.critical_findings > 0 ? 'glow-error' : scan.high_findings > 0 ? 'glow-tertiary' : 'glow-primary';
+            const iconBoxClass = scan.critical_findings > 0 ? 'error' : scan.high_findings > 0 ? 'tertiary' : 'primary';
+
+            return (
+              <div key={scan.id} className="report-card group">
+                <div className={`report-card-glow ${glowClass}`}></div>
+                <div className="report-card-content">
+                  <div className="report-header">
+                    <div className="flex items-center gap-3">
+                      <div className={`report-icon-box ${iconBoxClass}`}>
+                        <span className="material-symbols-outlined">description</span>
+                      </div>
+                      <div>
+                        <h3 className="report-title">{scan.target_url}</h3>
+                        <p className="report-date">
+                          Scan #{scan.id.slice(0, 8)} • {formatDate(scan.started_at)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className={`report-badge ${hasFindings ? (scan.critical_findings > 0 ? 'badge-red' : 'badge-yellow') : 'badge-gray'}`}>
+                      <span className="material-symbols-outlined text-[14px]">
+                        {hasFindings ? 'warning' : 'check_circle'}
+                      </span>
+                      {scan.total_findings} Confirmed Findings
+                    </div>
+                  </div>
+                  
+                  <div className="report-divider"></div>
+                  
+                  <div className="report-actions">
+                    <button className="btn-view" onClick={() => handleDownloadJson(scan.id)}>
+                      <span className="material-symbols-outlined text-[16px]">visibility</span> View JSON
+                    </button>
+                    <div className="download-group">
+                      <button 
+                        className="btn-download" 
+                        title="Download PDF" 
+                        onClick={() => handleDownloadPdf(scan.id)}
+                        disabled={downloading === `pdf-${scan.id}`}
+                      >
+                        <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
+                      </button>
+                      <button 
+                        className="btn-download font-mono-sm" 
+                        title="Download JSON"
+                        onClick={() => handleDownloadJson(scan.id)}
+                        disabled={downloading === `json-${scan.id}`}
+                      >
+                        {'{ }'}
+                      </button>
+                      <button 
+                        className="btn-download font-small-caps" 
+                        title="Download SARIF"
+                        onClick={() => handleDownloadSarif(scan.id)}
+                        disabled={downloading === `sarif-${scan.id}`}
+                      >
+                        SARIF
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })
         )}
-
-        {/* Report Card 2 */}
-        <div className="report-card group">
-          <div className="report-card-glow glow-tertiary"></div>
-          <div className="report-card-content">
-            <div className="report-header">
-              <div className="flex items-center gap-3">
-                <div className="report-icon-box tertiary">
-                  <span className="material-symbols-outlined">description</span>
-                </div>
-                <div>
-                  <h3 className="report-title">api.acme.corp</h3>
-                  <p className="report-date">Aug 12, 2026</p>
-                </div>
-              </div>
-              <div className="report-badge badge-yellow">
-                <span className="material-symbols-outlined text-[14px]">warning</span>
-                8 Findings
-              </div>
-            </div>
-            
-            <div className="report-divider"></div>
-            
-            <div className="report-actions">
-              <button className="btn-view">
-                <span className="material-symbols-outlined text-[16px]">visibility</span> View
-              </button>
-              <div className="download-group">
-                <button className="btn-download" title="Download PDF">
-                  <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
-                </button>
-                <button className="btn-download font-mono-sm" title="Download JSON">
-                  {'{ }'}
-                </button>
-                <button className="btn-download font-small-caps" title="Download SARIF">
-                  SARIF
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Report Card 3 */}
-        <div className="report-card group">
-          <div className="report-card-glow glow-primary"></div>
-          <div className="report-card-content">
-            <div className="report-header">
-              <div className="flex items-center gap-3">
-                <div className="report-icon-box primary">
-                  <span className="material-symbols-outlined">description</span>
-                </div>
-                <div>
-                  <h3 className="report-title">staging.dev.io</h3>
-                  <p className="report-date">Aug 05, 2026</p>
-                </div>
-              </div>
-              <div className="report-badge badge-gray">
-                <span className="material-symbols-outlined text-[14px]">check_circle</span>
-                0 Findings
-              </div>
-            </div>
-            
-            <div className="report-divider"></div>
-            
-            <div className="report-actions">
-              <button className="btn-view">
-                <span className="material-symbols-outlined text-[16px]">visibility</span> View
-              </button>
-              <div className="download-group">
-                <button className="btn-download" title="Download PDF">
-                  <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
-                </button>
-                <button className="btn-download font-mono-sm" title="Download JSON">
-                  {'{ }'}
-                </button>
-                <button className="btn-download font-small-caps" title="Download SARIF">
-                  SARIF
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

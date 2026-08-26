@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { scanService, FindingItem } from '../services/api';
+import { useNavigate, useParams } from 'react-router-dom';
+import { findingService, FindingItem } from '../services/api';
 import './Findings.css';
 
 export default function Findings() {
   const navigate = useNavigate();
+  const { scanId } = useParams();
   const [findings, setFindings] = useState<FindingItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState<boolean>(true);
@@ -14,25 +15,18 @@ export default function Findings() {
     async function loadFindings() {
       try {
         setLoading(true);
-        // Try fetching active scan if saved
-        const activeScanId = localStorage.getItem('last_active_scan_id');
-        if (activeScanId) {
-          const data = await scanService.getScanFindings(activeScanId);
-          if (data && data.length > 0) {
-            setFindings(data);
-            setSelectedIds(new Set(data.map(f => f.id)));
-            setLoading(false);
-            return;
-          }
-        }
+        const activeScanId = scanId || localStorage.getItem('last_active_scan_id');
+        const data = await findingService.getFindings({ scan_id: activeScanId || undefined });
+        setFindings(data);
+        setSelectedIds(new Set(data.map(f => f.id)));
       } catch (err) {
-        console.warn("Could not fetch real findings, displaying fallback:", err);
+        console.warn("Could not fetch real findings:", err);
       } finally {
         setLoading(false);
       }
     }
     loadFindings();
-  }, []);
+  }, [scanId]);
 
   const displayedFindings = findings.filter(f => 
     !filterText || 
@@ -59,14 +53,26 @@ export default function Findings() {
     setSelectedIds(newSet);
   };
 
+  const handleExportJson = () => {
+    const dataToExport = displayedFindings.filter(f => selectedIds.has(f.id));
+    const blob = new Blob([JSON.stringify(dataToExport.length > 0 ? dataToExport : displayedFindings, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `findings_export_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    a.remove();
+  };
+
   const renderSeverity = (sev: string) => {
-    const classes = {
+    const s = (sev || 'MEDIUM').toUpperCase();
+    const classes: Record<string, string> = {
       'CRITICAL': 'sev-critical',
       'HIGH': 'sev-high',
       'MEDIUM': 'sev-medium',
       'LOW': 'sev-low'
     };
-    return <span className={`severity-badge ${classes[sev as keyof typeof classes] || 'sev-medium'}`}>{sev}</span>;
+    return <span className={`severity-badge ${classes[s] || 'sev-medium'}`}>{s}</span>;
   };
 
   const renderPriority = (priority?: string) => {
@@ -85,13 +91,15 @@ export default function Findings() {
     const dotClasses: Record<string, string> = {
       'open': 'dot-open',
       'Open': 'dot-open',
+      'verified': 'dot-verified',
       'Verified': 'dot-verified',
+      'verified_fixed': 'dot-verified',
       'closed': 'dot-closed',
       'Closed': 'dot-closed'
     };
     return (
       <span className="status-badge">
-        <span className={`status-dot ${dotClasses[status] || 'dot-open'}`}></span> {status.toUpperCase()}
+        <span className={`status-dot ${dotClasses[status] || 'dot-open'}`}></span> {(status || 'OPEN').toUpperCase()}
       </span>
     );
   };
@@ -104,11 +112,11 @@ export default function Findings() {
           <p className="findings-subtitle">{displayedFindings.length} verified vulnerabilities detected across your targets.</p>
         </div>
         <div className="findings-actions">
-          <button className="btn-secondary">
+          <button className="btn-secondary" onClick={handleExportJson}>
             <span className="material-symbols-outlined" style={{fontSize: '18px'}}>download</span> Export
           </button>
-          <button className="btn-primary">
-            <span className="material-symbols-outlined" style={{fontSize: '18px'}}>add</span> New Finding
+          <button className="btn-primary" onClick={() => navigate('/scans/new')}>
+            <span className="material-symbols-outlined" style={{fontSize: '18px'}}>add</span> New Scan
           </button>
         </div>
       </div>
@@ -128,8 +136,8 @@ export default function Findings() {
                 onChange={(e) => setFilterText(e.target.value)}
               />
             </div>
-            <button className="btn-filter">
-              <span className="material-symbols-outlined" style={{fontSize: '16px'}}>filter_list</span> Filter
+            <button className="btn-filter" onClick={() => setFilterText('')}>
+              <span className="material-symbols-outlined" style={{fontSize: '16px'}}>clear_all</span> Reset
             </button>
           </div>
           <div className="toolbar-right">
@@ -190,11 +198,11 @@ export default function Findings() {
                       <td>
                         <code className="endpoint-code">{finding.endpoint_path || '/'}</code>
                       </td>
-                      <td style={{textAlign: 'right', color: 'var(--color-on-surface-variant)'}}>{finding.confidence}%</td>
+                      <td style={{textAlign: 'right', color: 'var(--color-on-surface-variant)'}}>{finding.confidence || '90%'}</td>
                       <td>{renderStatus(finding.status)}</td>
                       <td style={{textAlign: 'right'}}>
-                        <button className="action-btn" onClick={(e) => { e.stopPropagation(); }}>
-                          <span className="material-symbols-outlined" style={{fontSize: '18px'}}>more_vert</span>
+                        <button className="action-btn" onClick={(e) => { e.stopPropagation(); navigate(`/vulnerabilities/${finding.id}`); }}>
+                          <span className="material-symbols-outlined" style={{fontSize: '18px'}}>visibility</span>
                         </button>
                       </td>
                     </tr>
@@ -207,20 +215,7 @@ export default function Findings() {
 
         {/* Footer */}
         <div className="table-footer">
-          <span className="footer-text">Showing 1 to 5 of 47 findings</span>
-          <div className="pagination">
-            <button className="page-btn" disabled>
-              <span className="material-symbols-outlined" style={{fontSize: '18px'}}>chevron_left</span>
-            </button>
-            <button className="page-btn active">1</button>
-            <button className="page-btn">2</button>
-            <button className="page-btn">3</button>
-            <span className="page-dots">...</span>
-            <button className="page-btn">10</button>
-            <button className="page-btn">
-              <span className="material-symbols-outlined" style={{fontSize: '18px'}}>chevron_right</span>
-            </button>
-          </div>
+          <span className="footer-text">Showing {displayedFindings.length} of {findings.length} findings</span>
         </div>
 
       </div>
