@@ -1,17 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { scanService, ScanLogItem } from '../services/api';
+import { scanService, ScanLogItem, ScanStatistics } from '../services/api';
 import './LiveScan.css';
 
 const STAGES = [
-  { key: 'INITIALIZING', label: '1. Initialization & Preflight', pct: 10 },
-  { key: 'DISCOVERY', label: '2. Crawling & Asset Discovery', pct: 25 },
-  { key: 'ATTACK_SURFACE', label: '3. Attack Surface Graph', pct: 40 },
-  { key: 'PRIORITIZATION', label: '4. Target Prioritization', pct: 55 },
-  { key: 'FUZZING', label: '5. Context-Aware Fuzzing', pct: 70 },
-  { key: 'ANALYSIS', label: '6. Anomaly & Response Analysis', pct: 85 },
-  { key: 'VALIDATION', label: '7. Evidence & Retest Validation', pct: 95 },
-  { key: 'REPORTING', label: '8. Security Audit Reporting', pct: 100 },
+  { key: 'DISCOVERY', label: '1. Discovery (Crawling & Param Extraction)', pct: 20 },
+  { key: 'CONTEXT', label: '2. Context (Attack Surface & Logic Graph)', pct: 40 },
+  { key: 'FUZZING', label: '3. Fuzzing (Adaptive Payload Probing)', pct: 60 },
+  { key: 'ANALYSIS', label: '4. Analysis (Response Divergence & Anomaly)', pct: 80 },
+  { key: 'VALIDATION', label: '5. Validation (Targeted Retests & ML)', pct: 95 },
+  { key: 'COMPLETE', label: '6. Complete (Audit & Compliance Report)', pct: 100 },
 ];
 
 export default function LiveScan() {
@@ -24,6 +22,7 @@ export default function LiveScan() {
   const [scanStatus, setScanStatus] = useState("INITIALIZING");
   const [currentStage, setCurrentStage] = useState("INITIALIZING");
   const [target, setTarget] = useState("Loading...");
+  const [stats, setStats] = useState<ScanStatistics | null>(null);
   
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
@@ -33,9 +32,10 @@ export default function LiveScan() {
 
     const fetchStatusAndLogs = async () => {
       try {
-        const [statusData, logsData] = await Promise.all([
+        const [statusData, logsData, statsData] = await Promise.all([
           scanService.getScanStatus(resolvedId).catch(() => null),
-          scanService.getScanLogs(resolvedId).catch(() => [])
+          scanService.getScanLogs(resolvedId).catch(() => []),
+          scanService.getScanStatistics(resolvedId).catch(() => null)
         ]);
 
         if (statusData) {
@@ -57,6 +57,10 @@ export default function LiveScan() {
 
         if (logsData && logsData.length > 0) {
           setLogs(logsData);
+        }
+
+        if (statsData) {
+          setStats(statsData);
         }
       } catch (err) {
         console.warn("Live scan fetch warning:", err);
@@ -133,8 +137,47 @@ export default function LiveScan() {
             <span className="material-symbols-outlined" style={{fontSize: '18px'}}>hub</span> ATTACK SURFACE
           </button>
           <button className="btn-action btn-view" onClick={() => navigate(`/scans/${activeScanId}/fuzzing`)}>
-            <span className="material-symbols-outlined" style={{fontSize: '18px'}}>terminal</span> LIVE FUZZING
+            <span className="material-symbols-outlined" style={{fontSize: '18px'}}>science</span> LIVE FUZZING
           </button>
+        </div>
+      </div>
+
+      {/* Real-time Scan Telemetry Bar */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+        gap: '12px',
+        marginBottom: '20px'
+      }}>
+        <div style={{padding: '12px 14px', background: 'var(--color-surface)', borderRadius: '6px', border: '1px solid var(--color-outline-variant)'}}>
+          <div style={{fontSize: '11px', color: 'var(--color-on-surface-variant)', textTransform: 'uppercase'}}>Scan Mode</div>
+          <div style={{fontSize: '14px', fontWeight: 700, marginTop: '2px', color: 'var(--color-on-surface)'}}>Adaptive Fuzz</div>
+        </div>
+        <div style={{padding: '12px 14px', background: 'var(--color-surface)', borderRadius: '6px', border: '1px solid var(--color-outline-variant)'}}>
+          <div style={{fontSize: '11px', color: 'var(--color-on-surface-variant)', textTransform: 'uppercase'}}>Configured Depth</div>
+          <div style={{fontSize: '14px', fontWeight: 700, marginTop: '2px', color: 'var(--color-primary)'}}>Depth 3</div>
+        </div>
+        <div style={{padding: '12px 14px', background: 'var(--color-surface)', borderRadius: '6px', border: '1px solid var(--color-outline-variant)'}}>
+          <div style={{fontSize: '11px', color: 'var(--color-on-surface-variant)', textTransform: 'uppercase'}}>Current Stage</div>
+          <div style={{fontSize: '14px', fontWeight: 700, marginTop: '2px', color: 'var(--color-on-surface)'}}>{currentStage}</div>
+        </div>
+        <div style={{padding: '12px 14px', background: 'var(--color-surface)', borderRadius: '6px', border: '1px solid var(--color-outline-variant)'}}>
+          <div style={{fontSize: '11px', color: 'var(--color-on-surface-variant)', textTransform: 'uppercase'}}>Progress</div>
+          <div style={{fontSize: '14px', fontWeight: 700, marginTop: '2px', color: 'var(--color-primary)'}}>{progress}%</div>
+        </div>
+        <div style={{padding: '12px 14px', background: 'var(--color-surface)', borderRadius: '6px', border: '1px solid var(--color-outline-variant)'}}>
+          <div style={{fontSize: '11px', color: 'var(--color-on-surface-variant)', textTransform: 'uppercase'}}>Endpoints Discovered</div>
+          <div style={{fontSize: '14px', fontWeight: 700, marginTop: '2px', color: 'var(--color-secondary)'}}>{stats?.total_endpoints ?? '—'}</div>
+        </div>
+        <div style={{padding: '12px 14px', background: 'var(--color-surface)', borderRadius: '6px', border: '1px solid var(--color-outline-variant)'}}>
+          <div style={{fontSize: '11px', color: 'var(--color-on-surface-variant)', textTransform: 'uppercase'}}>Requests Sent</div>
+          <div style={{fontSize: '14px', fontWeight: 700, marginTop: '2px', color: 'var(--color-on-surface)'}}>{stats?.requests_performed?.toLocaleString() ?? '—'}</div>
+        </div>
+        <div style={{padding: '12px 14px', background: 'var(--color-surface)', borderRadius: '6px', border: '1px solid var(--color-outline-variant)'}}>
+          <div style={{fontSize: '11px', color: 'var(--color-on-surface-variant)', textTransform: 'uppercase'}}>Findings</div>
+          <div style={{fontSize: '14px', fontWeight: 700, marginTop: '2px', color: (stats?.total_findings || 0) > 0 ? 'var(--color-error)' : 'var(--color-on-surface)'}}>
+            {stats?.total_findings ?? '0'}
+          </div>
         </div>
       </div>
 

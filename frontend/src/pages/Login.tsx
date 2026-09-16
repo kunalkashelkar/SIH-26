@@ -17,13 +17,13 @@ export default function Login() {
       <div className="login-container">
         <div className="login-logo-container">
           <img 
-            alt="Sentinel Security Platform Logo" 
+            alt="CYPHER Logo" 
             className="login-logo" 
             src="https://lh3.googleusercontent.com/aida/AP1WRLuwerRDvsobOivIzvDdFN-sM1KgDiEZ6mYfN72dgWjbgZmLTSehFOk3Mig4sauj8U0qb7htzCYIdLlHgpE0RD69kJyyVOG9TTa38FuWh7pbNPMBo-G5Hv1NFDM0IgTzVTAIe7gPKwr5wdhjY4QKu7hDZW4YiH1OrySkQxFAehC6PvRyb7PJnOX1oydZ8Vof895l2B2x6TGU5zWgJ8QP4GY9EK_YIITdWY1BLdbDt1VnQbsq7LQKwtfz6IJs"
           />
         </div>
         
-        <h1 className="login-title">Sign in to Sentinel</h1>
+        <h1 className="login-title">Sign in to CYPHER</h1>
         
         <div className="login-card">
           <form className="login-form" onSubmit={handleLogin}>
@@ -81,7 +81,7 @@ export default function Login() {
         
         <div className="signup-prompt">
           <p>
-            New to Sentinel? 
+            New to CYPHER? 
             <Link to="/login" className="signup-link">Create an account</Link>.
           </p>
         </div>

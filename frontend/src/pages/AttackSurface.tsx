@@ -678,7 +678,17 @@ export default function AttackSurface() {
                   <h2 className="endpoint-title" title={selectedNode.label}>{selectedNode.label}</h2>
                 </div>
                 <div className="panel-meta-row">
-                  {selectedPriority ? (
+                  {selectedNode.type === 'FINDING' ? (
+                    <span
+                      className="risk-badge"
+                      style={{
+                        color: selectedNode.metadata?.severity === 'CRITICAL' || selectedNode.metadata?.severity === 'HIGH' ? 'var(--color-error)' : 'var(--color-primary)'
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>warning</span>
+                      {selectedNode.metadata?.severity || 'VULNERABILITY'}
+                    </span>
+                  ) : selectedPriority ? (
                     <span
                       className="risk-badge"
                       style={{
@@ -689,7 +699,7 @@ export default function AttackSurface() {
                       {selectedPriority.priority} (Score: {selectedPriority.score})
                     </span>
                   ) : (
-                    <span className="meta-time">Type: {selectedNode.type}</span>
+                    <span className="meta-time">Node Type: {selectedNode.type}</span>
                   )}
                   {selectedNode.metadata?.status_code && (
                     <span className="meta-time">HTTP {selectedNode.metadata.status_code}</span>
@@ -701,22 +711,111 @@ export default function AttackSurface() {
               </div>
 
               <div className="panel-content">
-                {/* 1. Request / Parameters Section */}
-                {selectedNode.metadata?.parameters && selectedNode.metadata.parameters.length > 0 && (
-                  <div className="panel-section-block">
-                    <h3 className="panel-section-title">Parameters ({selectedNode.metadata.parameters.length})</h3>
-                    <div className="param-list">
-                      {selectedNode.metadata.parameters.map((param: string, pIdx: number) => (
-                        <div key={pIdx} className="param-item">
-                          <span className="param-name">?{param}</span>
-                          <span className="param-type">user-controlled</span>
+                {/* 1. Endpoint Specific Details */}
+                {selectedNode.type === 'ENDPOINT' && (
+                  <>
+                    <div className="panel-section-block">
+                      <h3 className="panel-section-title">Endpoint Specifications</h3>
+                      <div style={{display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px'}}>
+                        <div style={{display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(0,0,0,0.2)', borderRadius: '4px'}}>
+                          <span className="text-muted">HTTP Method:</span>
+                          <span style={{fontWeight: 700, color: 'var(--color-primary)'}}>{selectedNode.metadata?.method || 'GET'}</span>
                         </div>
-                      ))}
+                        <div style={{display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(0,0,0,0.2)', borderRadius: '4px'}}>
+                          <span className="text-muted">Endpoint Type:</span>
+                          <span>{selectedNode.metadata?.endpoint_type || 'REST API / Route'}</span>
+                        </div>
+                        <div style={{display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(0,0,0,0.2)', borderRadius: '4px'}}>
+                          <span className="text-muted">Authentication:</span>
+                          <span>{selectedNode.metadata?.auth_required ? 'Required (Auth Guard)' : 'Unauthenticated (Public)'}</span>
+                        </div>
+                        <div style={{display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(0,0,0,0.2)', borderRadius: '4px'}}>
+                          <span className="text-muted">External Exposure:</span>
+                          <span style={{color: selectedNode.metadata?.external_exposure ? '#ff9800' : '#4caf50'}}>
+                            {selectedNode.metadata?.external_exposure ? 'Externally Exposed' : 'Internal Boundary'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Parameters Section */}
+                    {selectedNode.metadata?.parameters && selectedNode.metadata.parameters.length > 0 && (
+                      <div className="panel-section-block">
+                        <h3 className="panel-section-title">Parameters ({selectedNode.metadata.parameters.length})</h3>
+                        <div className="param-list">
+                          {selectedNode.metadata.parameters.map((param: string, pIdx: number) => (
+                            <div key={pIdx} className="param-item">
+                              <span className="param-name">?{param}</span>
+                              <span className="param-type">user-controlled</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* 2. Vulnerability Specific Details */}
+                {selectedNode.type === 'FINDING' && (
+                  <div className="panel-section-block">
+                    <h3 className="panel-section-title">Vulnerability Assessment</h3>
+                    <div style={{padding: '12px', background: 'rgba(244, 67, 54, 0.08)', borderRadius: '6px', border: '1px solid rgba(244, 67, 54, 0.2)'}}>
+                      <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
+                        <strong style={{color: 'var(--color-on-surface)'}}>{selectedNode.label}</strong>
+                        <span className={`severity-badge ${selectedNode.metadata?.severity === 'CRITICAL' ? 'sev-critical' : 'sev-high'}`}>
+                          {selectedNode.metadata?.severity || 'CRITICAL'}
+                        </span>
+                      </div>
+                      {selectedNode.metadata?.endpoint && (
+                        <p style={{fontSize: '12px', color: 'var(--color-on-surface-variant)', marginBottom: '8px'}}>
+                          Affected: <code className="font-mono">{selectedNode.metadata.endpoint}</code>
+                        </p>
+                      )}
+                      {selectedNode.metadata?.evidence && (
+                        <div style={{fontSize: '12px', background: 'rgba(0,0,0,0.3)', padding: '8px', borderRadius: '4px', marginBottom: '8px', fontFamily: 'monospace'}}>
+                          Evidence: {selectedNode.metadata.evidence}
+                        </div>
+                      )}
+                      {selectedNode.metadata?.remediation && (
+                        <div style={{fontSize: '12px', color: '#4caf50', marginTop: '6px'}}>
+                          Fix: {selectedNode.metadata.remediation}
+                        </div>
+                      )}
+                      <button 
+                        className="btn-link" 
+                        style={{marginTop: '10px'}} 
+                        onClick={() => navigate(selectedNode.metadata?.finding_id ? `/vulnerabilities/${selectedNode.metadata.finding_id}` : '/findings')}
+                      >
+                        Open Triage Report →
+                      </button>
                     </div>
                   </div>
                 )}
 
-                {/* 2. Prioritization Rules Section */}
+                {/* 3. Domain / Asset Node Details */}
+                {(selectedNode.type === 'TARGET' || selectedNode.type === 'DOMAIN' || selectedNode.type === 'SUBDOMAIN') && (
+                  <div className="panel-section-block">
+                    <h3 className="panel-section-title">Host Asset Metadata</h3>
+                    <div style={{display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px'}}>
+                      <div style={{display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(0,0,0,0.2)', borderRadius: '4px'}}>
+                        <span className="text-muted">Asset Class:</span>
+                        <span>{selectedNode.type}</span>
+                      </div>
+                      {selectedNode.metadata?.ip_address && (
+                        <div style={{display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(0,0,0,0.2)', borderRadius: '4px'}}>
+                          <span className="text-muted">IP Address:</span>
+                          <span className="font-mono">{selectedNode.metadata.ip_address}</span>
+                        </div>
+                      )}
+                      <div style={{display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'rgba(0,0,0,0.2)', borderRadius: '4px'}}>
+                        <span className="text-muted">Discovery Source:</span>
+                        <span>{selectedNode.metadata?.discovery_source || 'DNS / Crawler'}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. Prioritization Rules Section */}
                 {selectedPriority && selectedPriority.reasons.length > 0 && (
                   <div className="panel-section-block">
                     <h3 className="panel-section-title">Prioritization Rules</h3>
@@ -737,7 +836,7 @@ export default function AttackSurface() {
                   </div>
                 )}
 
-                {/* 3. Real XGBoost ML Classification */}
+                {/* 5. Real XGBoost ML Classification */}
                 {mlPrediction && (
                   <div className="panel-section-block">
                     <h3 className="panel-section-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -771,7 +870,7 @@ export default function AttackSurface() {
                   </div>
                 )}
 
-                {/* 4. Asset Attributes Section */}
+                {/* 6. Asset Attributes Section */}
                 <div className="panel-section-block">
                   <h3 className="panel-section-title">Asset Attributes</h3>
                   <div className="timeline">

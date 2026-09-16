@@ -23,9 +23,9 @@ export default function Documentation() {
 
       {/* Main Content Area */}
       <div className="docs-main">
-        <h1 className="docs-title" id="overview">Sentinel Platform Architecture</h1>
+        <h1 className="docs-title" id="overview">CYPHER Platform Architecture</h1>
         <p className="docs-paragraph">
-          Sentinel is an autonomous security intelligence and vulnerability fuzzing platform. It unifies active web crawling, differential response probing, targeted re-testing, NetworkX graph analysis, and XGBoost machine learning classification into a live PostgreSQL-backed security pipeline.
+          CYPHER is an autonomous security intelligence and vulnerability assessment platform. It unifies active web crawling, differential response probing, targeted re-testing, NetworkX graph analysis, and XGBoost machine learning classification into a live PostgreSQL-backed security pipeline.
         </p>
 
         {/* Pipeline Section */}

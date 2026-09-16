@@ -103,6 +103,8 @@ export default function Reports() {
     }
   };
 
+  const [selectedScanForPreview, setSelectedScanForPreview] = useState<ScanListItem | null>(null);
+
   const displayedScans = scans.filter(s => 
     !filterText || 
     s.target_url.toLowerCase().includes(filterText.toLowerCase()) ||
@@ -125,7 +127,7 @@ export default function Reports() {
           </button>
           <div>
             <h1 className="page-title m-0">Security Audit Reports</h1>
-            <p className="page-subtitle m-0 mt-1">Export, review, or discard stored vulnerability assessments.</p>
+            <p className="page-subtitle m-0 mt-1">Export Executive PDFs, Technical SARIF findings, or raw JSON assessments.</p>
           </div>
         </div>
 
@@ -141,6 +143,32 @@ export default function Reports() {
             />
           </div>
         </div>
+      </div>
+
+      {/* Format Legend / Guide */}
+      <div style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '12px',
+        alignItems: 'center',
+        padding: '12px 16px',
+        background: 'var(--color-surface)',
+        borderRadius: '6px',
+        border: '1px solid var(--color-outline-variant)',
+        fontSize: '12px'
+      }}>
+        <span style={{fontWeight: 700, color: 'var(--color-on-surface)'}}>Report Formats:</span>
+        <span style={{display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-primary)'}}>
+          <span className="material-symbols-outlined" style={{fontSize: '16px'}}>picture_as_pdf</span> Executive PDF (Board & CISO)
+        </span>
+        <span style={{color: 'var(--color-outline-variant)'}}>•</span>
+        <span style={{display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-tertiary)'}}>
+          <span className="material-symbols-outlined" style={{fontSize: '16px'}}>terminal</span> Technical SARIF (CI/CD & GitHub Security)
+        </span>
+        <span style={{color: 'var(--color-outline-variant)'}}>•</span>
+        <span style={{display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-secondary)'}}>
+          <span className="material-symbols-outlined" style={{fontSize: '16px'}}>code</span> JSON Export (SIEM & Data Lake)
+        </span>
       </div>
 
       <div className="reports-grid">

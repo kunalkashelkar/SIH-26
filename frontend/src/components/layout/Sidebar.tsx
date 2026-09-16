@@ -30,6 +30,7 @@ export default function Sidebar({ onCloseMobile }: SidebarProps) {
       
       <nav className="sidebar-nav">
         <div className="nav-section">
+          <div className="nav-section-title">OPERATIONS</div>
           <NavLink to="/dashboard" onClick={handleNavClick} className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <span className="material-symbols-outlined icon-small">dashboard</span>Dashboard
           </NavLink>
@@ -43,7 +44,7 @@ export default function Sidebar({ onCloseMobile }: SidebarProps) {
             <span className="material-symbols-outlined icon-small">security</span>Findings
           </NavLink>
           <NavLink to="/fuzzing" onClick={handleNavClick} className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <span className="material-symbols-outlined icon-small">experiment</span>Fuzzing
+            <span className="material-symbols-outlined icon-small">science</span>Fuzzing
           </NavLink>
           <NavLink to="/reports" onClick={handleNavClick} className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <span className="material-symbols-outlined icon-small">assessment</span>Reports
@@ -53,19 +54,26 @@ export default function Sidebar({ onCloseMobile }: SidebarProps) {
         <div className="nav-divider"></div>
         
         <div className="nav-section">
-          <NavLink to="/projects" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+          <div className="nav-section-title">MANAGEMENT</div>
+          <NavLink to="/projects" onClick={handleNavClick} className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <span className="material-symbols-outlined icon-small">folder</span>Projects
           </NavLink>
-          <NavLink to="/targets" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
-            <span className="material-symbols-outlined icon-small">target</span>Targets
+          <NavLink to="/targets" onClick={handleNavClick} className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+            <span className="material-symbols-outlined icon-small">radar</span>Targets
           </NavLink>
-          <NavLink to="/payloads" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+          <NavLink to="/payloads" onClick={handleNavClick} className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <span className="material-symbols-outlined icon-small">code</span>Payloads
           </NavLink>
-          <NavLink to="/settings" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+        </div>
+
+        <div className="nav-divider"></div>
+
+        <div className="nav-section">
+          <div className="nav-section-title">SYSTEM</div>
+          <NavLink to="/settings" onClick={handleNavClick} className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <span className="material-symbols-outlined icon-small">settings</span>Settings
           </NavLink>
-          <NavLink to="/documentation" className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
+          <NavLink to="/documentation" onClick={handleNavClick} className={({isActive}) => isActive ? "nav-item active" : "nav-item"}>
             <span className="material-symbols-outlined icon-small">menu_book</span>Documentation
           </NavLink>
         </div>

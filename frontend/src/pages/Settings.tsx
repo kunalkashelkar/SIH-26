@@ -142,7 +142,7 @@ export default function Settings() {
                 <div className="flex justify-between items-center mb-6">
                   <div>
                     <h2 className="settings-card-title m-0">API Keys</h2>
-                    <p className="settings-card-subtitle m-0 mt-2">Manage keys used for programmatic access to Sentinel.</p>
+                    <p className="settings-card-subtitle m-0 mt-2">Manage keys used for programmatic access to CYPHER.</p>
                   </div>
                   <button className="btn-primary font-caps flex items-center gap-2">
                     <span className="material-symbols-outlined text-[18px]">add</span>
@@ -256,8 +256,8 @@ export default function Settings() {
             <div className="settings-panel">
                <div className="settings-card">
                   <h2 className="settings-card-title">Notification Preferences</h2>
-                  <p className="settings-card-subtitle">Control how and when Sentinel alerts you.</p>
-                  <p className="text-muted">Notification settings are coming soon.</p>
+                  <p className="settings-card-subtitle">Control how and when CYPHER alerts you.</p>
+                  <p className="text-muted" style={{fontSize: '13px'}}>System alert channels and webhooks: <span className="status-badge badge-secondary" style={{display: 'inline-flex', padding: '2px 8px', fontSize: '11px'}}>Default Console Alerting Active</span></p>
                </div>
             </div>
           )}

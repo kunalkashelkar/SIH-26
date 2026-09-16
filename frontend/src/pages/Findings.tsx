@@ -1,15 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { findingService, FindingItem } from '../services/api';
 import './Findings.css';
 
 export default function Findings() {
   const navigate = useNavigate();
   const { scanId } = useParams();
+  const [searchParams] = useSearchParams();
+  const queryParam = searchParams.get('q') || '';
+  
   const [findings, setFindings] = useState<FindingItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState<boolean>(true);
-  const [filterText, setFilterText] = useState<string>('');
+  const [filterText, setFilterText] = useState<string>(queryParam);
+
+  useEffect(() => {
+    if (queryParam) {
+      setFilterText(queryParam);
+    }
+  }, [queryParam]);
 
   useEffect(() => {
     async function loadFindings() {
@@ -27,6 +36,12 @@ export default function Findings() {
     }
     loadFindings();
   }, [scanId]);
+
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return 'Active Scan';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
 
   const displayedFindings = findings.filter(f => 
     !filterText || 
@@ -150,37 +165,40 @@ export default function Findings() {
           <table className="findings-table">
             <thead>
               <tr>
-                <th style={{width: '48px', textAlign: 'center'}}>
+                <th style={{width: '40px', textAlign: 'center'}}>
                   <input 
                     type="checkbox" 
                     checked={selectedIds.size === displayedFindings.length && displayedFindings.length > 0} 
                     onChange={toggleSelectAll} 
                   />
                 </th>
-                <th>Severity & Priority</th>
-                <th style={{width: '33%'}}>Vulnerability Name</th>
+                <th style={{width: '110px'}}>Severity</th>
+                <th style={{width: '24%'}}>Vulnerability</th>
                 <th>Endpoint</th>
-                <th style={{textAlign: 'right'}}>Confidence</th>
-                <th>Status</th>
-                <th style={{width: '48px'}}></th>
+                <th style={{width: '80px'}}>Method</th>
+                <th style={{width: '100px'}}>Status</th>
+                <th style={{width: '80px'}}>Risk</th>
+                <th style={{width: '120px'}}>Detected At</th>
+                <th style={{width: '60px', textAlign: 'right'}}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} style={{textAlign: 'center', padding: '32px', color: 'var(--color-on-surface-variant)'}}>
+                  <td colSpan={9} style={{textAlign: 'center', padding: '32px', color: 'var(--color-on-surface-variant)'}}>
                     Loading confirmed findings...
                   </td>
                 </tr>
               ) : displayedFindings.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{textAlign: 'center', padding: '32px', color: 'var(--color-on-surface-variant)'}}>
-                    No findings detected yet. Run a scan to discover and validate vulnerabilities.
+                  <td colSpan={9} style={{textAlign: 'center', padding: '32px', color: 'var(--color-on-surface-variant)'}}>
+                    No findings detected for this target scope.
                   </td>
                 </tr>
               ) : (
                 displayedFindings.map((finding) => {
                   const isSelected = selectedIds.has(finding.id);
+                  const method = 'GET';
                   return (
                     <tr key={finding.id} className={isSelected ? 'selected-row' : ''} onClick={() => navigate(`/vulnerabilities/${finding.id}`)} style={{cursor: 'pointer'}}>
                       <td style={{textAlign: 'center'}} onClick={(e) => { e.stopPropagation(); toggleSelect(finding.id); }}>
@@ -192,16 +210,26 @@ export default function Findings() {
                       </td>
                       <td>
                         {renderSeverity(finding.severity)}
-                        {renderPriority(finding.priority)}
                       </td>
-                      <td className="vuln-name">{finding.vulnerability_type}</td>
+                      <td className="vuln-name">
+                        <div style={{fontWeight: 600, color: 'var(--color-on-surface)'}}>{finding.vulnerability_type}</div>
+                        {finding.cwe && <div style={{fontSize: '11px', color: 'var(--color-on-surface-variant)', fontFamily: 'monospace'}}>{finding.cwe}</div>}
+                      </td>
                       <td>
                         <code className="endpoint-code">{finding.endpoint_path || '/'}</code>
                       </td>
-                      <td style={{textAlign: 'right', color: 'var(--color-on-surface-variant)'}}>{finding.confidence || '90%'}</td>
+                      <td>
+                        <span className="method-badge" style={{fontSize: '10px'}}>{method}</span>
+                      </td>
                       <td>{renderStatus(finding.status)}</td>
+                      <td>
+                        {renderPriority(finding.priority)}
+                      </td>
+                      <td style={{fontSize: '12px', color: 'var(--color-on-surface-variant)', fontFamily: 'monospace'}}>
+                        {formatDate(finding.created_at)}
+                      </td>
                       <td style={{textAlign: 'right'}}>
-                        <button className="action-btn" onClick={(e) => { e.stopPropagation(); navigate(`/vulnerabilities/${finding.id}`); }}>
+                        <button className="action-btn" title="Investigate Finding" onClick={(e) => { e.stopPropagation(); navigate(`/vulnerabilities/${finding.id}`); }}>
                           <span className="material-symbols-outlined" style={{fontSize: '18px'}}>visibility</span>
                         </button>
                       </td>

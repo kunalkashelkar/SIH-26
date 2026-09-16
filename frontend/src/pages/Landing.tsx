@@ -11,7 +11,7 @@ export default function Landing() {
           <section className="hero-section">
             <div className="release-badge">
               <span className="dot"></span>
-              <span className="badge-text">Sentinel Core v2.4 Released</span>
+              <span className="badge-text">CYPHER Core v2.4 Released</span>
             </div>
             
             <h1 className="hero-title">
@@ -40,7 +40,7 @@ export default function Landing() {
                   <div className="light"></div>
                   <div className="light"></div>
                 </div>
-                <div className="terminal-title">sentinel-scan --target https://example.com</div>
+                <div className="terminal-title">cypher-scan --target https://example.com</div>
               </div>
               <div className="terminal-body">
                 <pre className="terminal-text">
@@ -61,7 +61,7 @@ export default function Landing() {
           <section className="pipeline-section">
             <div className="pipeline-container">
               <div className="pipeline-header">
-                <h2 className="section-title">The Sentinel Pipeline</h2>
+                <h2 className="section-title">The CYPHER Pipeline</h2>
                 <p className="section-subtitle">A deterministic approach to uncovering critical security flaws before they reach production.</p>
               </div>
               

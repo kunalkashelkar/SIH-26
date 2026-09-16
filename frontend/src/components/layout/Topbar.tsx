@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { healthService, SystemHealth } from '../../services/api';
 
 interface TopbarProps {
@@ -8,8 +8,10 @@ interface TopbarProps {
 
 export default function Topbar({ onToggleMobileMenu }: TopbarProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [health, setHealth] = useState<SystemHealth | null>(null);
   const [showHealthModal, setShowHealthModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     async function checkHealth() {
@@ -27,6 +29,33 @@ export default function Topbar({ onToggleMobileMenu }: TopbarProps) {
 
   const isHealthy = health?.status === 'ok';
 
+  // Compute Page Context Breadcrumb
+  const getPageTitle = (path: string) => {
+    if (path.startsWith('/dashboard')) return 'Dashboard';
+    if (path.startsWith('/scans/new')) return 'New Security Scan';
+    if (path.includes('/attack-surface')) return 'Attack Surface Graph';
+    if (path.includes('/fuzzing')) return 'Adaptive Fuzzing';
+    if (path.includes('/findings')) return 'Security Findings';
+    if (path.startsWith('/scans')) return 'Scans & Live Execution';
+    if (path.startsWith('/vulnerabilities')) return 'Vulnerability Investigation';
+    if (path.startsWith('/reports')) return 'Security Audit Reports';
+    if (path.startsWith('/projects')) return 'Project Workspaces';
+    if (path.startsWith('/targets')) return 'Target Inventory';
+    if (path.startsWith('/payloads')) return 'Payload Repository';
+    if (path.startsWith('/settings')) return 'System Settings';
+    if (path.startsWith('/documentation')) return 'Architecture & Docs';
+    if (path.startsWith('/profile')) return 'Operator Profile';
+    if (path.startsWith('/notifications')) return 'Notification Center';
+    return 'Console';
+  };
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/findings?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
+
   return (
     <header className="app-topbar">
       <div className="topbar-left-wrapper">
@@ -39,16 +68,24 @@ export default function Topbar({ onToggleMobileMenu }: TopbarProps) {
             <span className="material-symbols-outlined">menu</span>
           </button>
         )}
-        <div className="topbar-search-container">
-          <div className="search-input-wrapper">
-            <span className="material-symbols-outlined search-icon">search</span>
-            <input 
-              type="text" 
-              className="search-input" 
-              placeholder="Search endpoints, scans, findings..." 
-            />
-          </div>
+        <div className="topbar-breadcrumb">
+          <span className="breadcrumb-brand">CYPHER</span>
+          <span className="breadcrumb-separator">/</span>
+          <span className="breadcrumb-page">{getPageTitle(location.pathname)}</span>
         </div>
+      </div>
+
+      <div className="topbar-search-container">
+        <form onSubmit={handleSearchSubmit} className="search-input-wrapper">
+          <span className="material-symbols-outlined search-icon">search</span>
+          <input 
+            type="text" 
+            className="search-input" 
+            placeholder="Search endpoints, scans, findings (Press Enter)..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </form>
       </div>
       
       <div className="topbar-actions">

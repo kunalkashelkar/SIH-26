@@ -97,22 +97,22 @@ export default function Dashboard() {
             <span className="kpi-label">Active Scans</span>
             <span className="material-symbols-outlined text-primary">manage_search</span>
           </div>
-          <div className="kpi-value">{activeScansCount}</div>
+          <div className="kpi-value">{loading ? '—' : activeScansCount}</div>
           <div className="kpi-trend text-secondary">
             <span className="material-symbols-outlined icon-small">check_circle</span>
-            <span>{activeScansCount > 0 ? `${activeScansCount} running` : 'System ready'}</span>
+            <span>{loading ? 'Fetching state...' : activeScansCount > 0 ? `${activeScansCount} active scan` : 'System ready'}</span>
           </div>
         </div>
 
         <div className="kpi-card">
           <div className="kpi-header">
-            <span className="kpi-label">Endpoints</span>
+            <span className="kpi-label">Discovered Endpoints</span>
             <span className="material-symbols-outlined text-secondary">hub</span>
           </div>
-          <div className="kpi-value">{totalEndpoints}</div>
+          <div className="kpi-value">{loading ? '—' : totalEndpoints}</div>
           <div className="kpi-trend text-muted">
             <span className="material-symbols-outlined icon-small">sync</span>
-            <span>{totalParameters > 0 ? `${totalParameters} parameters` : 'Discovered via crawler'}</span>
+            <span>{loading ? 'Querying graph...' : totalParameters > 0 ? `${totalParameters} parameters mapped` : 'Mapped via crawler'}</span>
           </div>
         </div>
 
@@ -121,20 +121,20 @@ export default function Dashboard() {
             <span className="kpi-label">Confirmed Vulnerabilities</span>
             <span className="material-symbols-outlined text-error">bug_report</span>
           </div>
-          <div className="kpi-value">{totalFindings}</div>
+          <div className="kpi-value">{loading ? '—' : totalFindings}</div>
           <div className="kpi-trend text-error">
             <span className="material-symbols-outlined icon-small">warning</span>
-            <span>{resolvedCount > 0 ? `${resolvedCount} verified fixed` : 'PostgreSQL validated'}</span>
+            <span>{loading ? 'Checking findings...' : resolvedCount > 0 ? `${resolvedCount} verified fixed` : 'PostgreSQL validated'}</span>
           </div>
         </div>
 
         <div className="kpi-card">
           <div className="kpi-header">
-            <span className="kpi-label">Risk Score</span>
+            <span className="kpi-label">Overall Risk Score</span>
             <span className="material-symbols-outlined text-tertiary">health_and_safety</span>
           </div>
           <div className="kpi-value text-tertiary">
-            {riskScore.toFixed(1)}
+            {loading ? '—' : riskScore.toFixed(1)}
             <span className="kpi-subtext">/10</span>
           </div>
           <div className="kpi-progress-bar">
