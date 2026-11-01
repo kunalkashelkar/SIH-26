@@ -1,0 +1,113 @@
+# ==============================================================================
+# CYPHER - Web Application Fuzzer: Master Git Ignore
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. Node.js & Dependencies
+# ------------------------------------------------------------------------------
+node_modules/
+*/node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# ------------------------------------------------------------------------------
+# 2. Build Outputs & Generated Assets
+# ------------------------------------------------------------------------------
+dist/
+*/dist/
+**/dist/
+build/
+*/build/
+**/build/
+out/
+.next/
+*.tsbuildinfo
+
+# ------------------------------------------------------------------------------
+# 3. Python Bytecode, Caches & Environments
+# ------------------------------------------------------------------------------
+__pycache__/
+*/__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*/.venv/
+**/.venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing & Coverage
+.pytest_cache/
+*/.pytest_cache/
+**/.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ------------------------------------------------------------------------------
+# 4. Environment Variables & Secrets
+# ------------------------------------------------------------------------------
+.env
+*.env
+*.env.local
+*.env.development.local
+*.env.test.local
+*.env.production.local
+!*.env.example
+
+# ------------------------------------------------------------------------------
+# 5. Database & Local Storage Files
+# ------------------------------------------------------------------------------
+*.db
+*.db-journal
+*.db.bak
+*.sqlite
+*.sqlite3
+sentinel.db*
+sql_app.db*
+
+# ------------------------------------------------------------------------------
+# 6. Generated Scan Artifacts & Reports
+# ------------------------------------------------------------------------------
+scan_res*.json
+scan_results*.json
+report_*.pdf
+report_*.json
+
+# ------------------------------------------------------------------------------
+# 7. Operating System & Editor Files
+# ------------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.sublime-workspace
+*.swp
+*.swo
+*~

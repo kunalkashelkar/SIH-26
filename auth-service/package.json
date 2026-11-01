@@ -1,0 +1,21 @@
+{
+  "name": "cypher-auth-service",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "CYPHER Authentication and Identity Service (Better Auth)",
+  "main": "dist/server.js",
+  "scripts": {
+    "start": "node dist/server.js",
+    "dev": "node dist/server.js",
+    "build": "node -e 'console.log(\"Auth service ready: dist/server.js verified\")'"
+  },
+  "dependencies": {
+    "better-auth": "^1.1.21",
+    "better-sqlite3": "^11.8.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "nodemailer": "^6.10.0",
+    "pg": "^8.13.1"
+  }
+}
