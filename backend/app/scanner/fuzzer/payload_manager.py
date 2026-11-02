@@ -37,10 +37,23 @@ class PayloadManager:
         ],
         "TYPE_CONFUSION": [
             {"payload": "NaN", "indicator": "type_error_provocation", "desc": "Non-numeric input to numeric parameter"},
-            {"payload": "true", "indicator": "boolean_injection", "desc": "Boolean keyword injection"}
+            {"payload": "true", "indicator": "boolean_injection", "desc": "Boolean keyword injection"},
+            {"payload": "null", "indicator": "null_dereference", "desc": "Null literal injection"},
+            {"payload": "[]", "indicator": "array_injection", "desc": "Array structure injection"},
+            {"payload": "{}", "indicator": "object_injection", "desc": "Object structure injection"}
         ],
         "INPUT_VALIDATION": [
-            {"payload": "'\";><", "indicator": "special_char_handling", "desc": "Special characters fuzzing probe"}
+            {"payload": "'\";><", "indicator": "special_char_handling", "desc": "Special characters fuzzing probe"},
+            {"payload": "%00", "indicator": "null_byte_injection", "desc": "Null byte injection probe"},
+            {"payload": "../../../etc/passwd", "indicator": "path_traversal", "desc": "Directory traversal probe"},
+            {"payload": "A" * 256, "indicator": "buffer_boundary", "desc": "Long string buffer boundary test"}
+        ],
+        "BOUNDARY": [
+            {"payload": "0", "indicator": "zero_boundary", "desc": "Zero boundary probe"},
+            {"payload": "-1", "indicator": "negative_boundary", "desc": "Negative boundary probe"},
+            {"payload": "2147483647", "indicator": "int32_overflow", "desc": "32-bit max integer overflow probe"},
+            {"payload": "9223372036854775807", "indicator": "int64_overflow", "desc": "64-bit max integer overflow probe"},
+            {"payload": "", "indicator": "empty_value", "desc": "Empty string boundary probe"}
         ]
     }
 
@@ -54,7 +67,15 @@ class PayloadManager:
     ) -> list[TestCase]:
         test_cases: list[TestCase] = []
 
-        for category in context.recommended_tests:
+        categories = list(context.recommended_tests)
+        
+        # Inject boundary category for numeric, integer, or identifier parameters
+        param_type = (context.type or "").lower()
+        if param_type in ["numeric", "integer", "number", "id"] or context.parameter.lower().endswith("_id") or context.parameter.lower() == "id":
+            if "BOUNDARY" not in categories:
+                categories.append("BOUNDARY")
+
+        for category in categories:
             available_payloads = cls.PAYLOADS.get(category, cls.PAYLOADS["INPUT_VALIDATION"])
             selected = available_payloads[:max_payloads_per_cat]
 

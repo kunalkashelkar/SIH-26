@@ -21,6 +21,28 @@ class ResponseAnalyzer:
         self.baseline_collector = BaselineCollector(client)
 
     async def analyze_fuzz_results(self, fuzz_results: list[FuzzTestResult]) -> list[AnomalyReport]:
+        if not fuzz_results:
+            from app.models.models import FuzzResult
+            db_res = await self.db.execute(select(FuzzResult).where(FuzzResult.scan_id == self.scan_id))
+            db_fuzz_rows = db_res.scalars().all()
+            if db_fuzz_rows:
+                logger.info(f"Reconstructed {len(db_fuzz_rows)} test results from database for scan {self.scan_id}")
+                fuzz_results = [
+                    FuzzTestResult(
+                        test_id=row.test_id or row.id,
+                        scan_id=row.scan_id,
+                        endpoint_id=row.endpoint_id,
+                        parameter_id=row.parameter_id,
+                        category=row.category or "INPUT_VALIDATION",
+                        payload=row.payload or "",
+                        status_code=row.status_code,
+                        response_time_ms=row.response_time_ms or 0.0,
+                        is_anomaly=row.anomaly_detected or False,
+                        anomaly_reason=row.details
+                    )
+                    for row in db_fuzz_rows
+                ]
+
         logger.info(f"Running Response Analysis on {len(fuzz_results)} fuzz test results for scan {self.scan_id}")
         
         # Load endpoints

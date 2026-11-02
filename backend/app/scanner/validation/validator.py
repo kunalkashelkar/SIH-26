@@ -149,7 +149,7 @@ class EvidenceValidator:
                     affected_url=endpoint.url,
                     affected_endpoint=endpoint.path,
                     http_method=endpoint.method,
-                    parameter=anomaly.parameter_name,
+                    parameter_name=anomaly.parameter_name,
                     detection_method="DYNAMIC_FUZZING",
                     validation_method="DIFFERENTIAL_PROBE"
                 )

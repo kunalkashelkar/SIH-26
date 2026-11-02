@@ -37,65 +37,9 @@ router = APIRouter()
 @router.get("/metrics/dashboard", response_model=DashboardMetricsResponse)
 async def get_dashboard_metrics(db: AsyncSession = Depends(get_db)):
     """Calculate all global system and vulnerability metrics directly from PostgreSQL."""
-    # Scans
-    scans_res = await db.execute(select(Scan))
-    scans = scans_res.scalars().all()
-    total_scans = len(scans)
-    completed_scans = sum(1 for s in scans if s.status == "COMPLETED")
-    running_scans = sum(1 for s in scans if s.status in ["RUNNING", "QUEUED"])
-    failed_scans = sum(1 for s in scans if s.status == "FAILED")
-    
-    # Endpoints & APIs
-    ep_res = await db.execute(select(Endpoint))
-    endpoints = ep_res.scalars().all()
-    total_endpoints = len(endpoints)
-    total_apis = sum(1 for e in endpoints if e.is_api)
-    
-    # Parameters
-    p_res = await db.execute(select(func.count(Parameter.id)))
-    total_parameters = p_res.scalar() or 0
-    
-    # Subdomains
-    sub_res = await db.execute(select(func.count(Subdomain.id)))
-    total_subdomains = sub_res.scalar() or 0
-    
-    # Findings
-    f_res = await db.execute(select(Finding))
-    findings = f_res.scalars().all()
-    total_findings = len(findings)
-    critical_findings = sum(1 for f in findings if f.severity == "CRITICAL")
-    high_findings = sum(1 for f in findings if f.severity == "HIGH")
-    medium_findings = sum(1 for f in findings if f.severity == "MEDIUM")
-    low_findings = sum(1 for f in findings if f.severity == "LOW")
-    validated_findings = sum(1 for f in findings if f.status in ["verified", "verified_fixed"])
-    open_findings = sum(1 for f in findings if f.status == "open")
-    resolved_findings = sum(1 for f in findings if f.status == "verified_fixed")
-    
-    # Contextual Risk Score (0.0 to 10.0)
-    risk_score = 0.0
-    if total_findings > 0:
-        raw_score = (critical_findings * 9.5 + high_findings * 7.5 + medium_findings * 4.5 + low_findings * 2.0) / max(total_findings, 1)
-        risk_score = round(min(raw_score, 10.0), 1)
-        
-    return DashboardMetricsResponse(
-        total_scans=total_scans,
-        completed_scans=completed_scans,
-        running_scans=running_scans,
-        failed_scans=failed_scans,
-        total_endpoints=total_endpoints,
-        total_apis=total_apis,
-        total_parameters=total_parameters,
-        total_subdomains=total_subdomains,
-        total_findings=total_findings,
-        critical_findings=critical_findings,
-        high_findings=high_findings,
-        medium_findings=medium_findings,
-        low_findings=low_findings,
-        validated_findings=validated_findings,
-        open_findings=open_findings,
-        resolved_findings=resolved_findings,
-        risk_score=risk_score
-    )
+    from app.services.dashboard_service import DashboardService
+    service = DashboardService(db)
+    return await service.get_metrics()
 
 @router.get("", response_model=List[ScanListItemResponse])
 async def list_scans(limit: int = 50, db: AsyncSession = Depends(get_db)):

@@ -46,6 +46,27 @@ async def get_optional_user(
         if claims:
             user_id = claims.get("sub") or claims.get("id") or claims.get("userId")
             email = claims.get("email")
-            return {"id": user_id, "email": email, "claims": claims}
+            role = (claims.get("role") or "USER").upper()
+            return {"id": user_id, "email": email, "role": role, "claims": claims}
     
     return None
+
+async def get_required_user(
+    user: Optional[Dict[str, Any]] = Depends(get_optional_user)
+) -> Dict[str, Any]:
+    """Dependency that mandates an authenticated identity."""
+    from app.core.exceptions import UnauthorizedException
+    if not user:
+        raise UnauthorizedException("Authentication token or session required")
+    return user
+
+def require_roles(allowed_roles: list[str]):
+    """RBAC dependency factory ensuring the user possesses an authorized role."""
+    async def _role_checker(user: Dict[str, Any] = Depends(get_required_user)):
+        from app.core.exceptions import ForbiddenException
+        user_role = (user.get("role") or "USER").upper()
+        allowed_upper = [r.upper() for r in allowed_roles]
+        if user_role not in allowed_upper and "ADMIN" not in user_role:
+            raise ForbiddenException(f"Role '{user_role}' is not authorized to access this resource")
+        return user
+    return _role_checker

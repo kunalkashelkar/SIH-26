@@ -112,7 +112,7 @@ class ScanOrchestrator:
 
         elif mode == ScanMode.GITHUB_ONLY:
             if not repo_url or not repo_url.strip():
-                raise ValidationError("REPOSITORY_ONLY scan mode requires a valid repository URL.")
+                raise ValidationError("GITHUB_ONLY scan mode requires a valid GitHub repository URL.")
             repo_url_clean = repo_url.strip()
             # Allow local path for testing / mock repos, or github.com
             is_local = os.path.exists(repo_url_clean)
@@ -273,7 +273,7 @@ class ScanOrchestrator:
         return scan
 
     def start_scan(self, scan_id: str, scan_config: Dict[str, Any]):
-        """Launch background scan task under bounded concurrency."""
+        """Launch background scan task under bounded concurrency via Celery or asyncio fallback."""
         if scan_id in self.active_tasks:
             logger.warning(f"Scan {scan_id} is already running.")
             return
@@ -281,10 +281,21 @@ class ScanOrchestrator:
         cancel_event = asyncio.Event()
         self.cancellation_events[scan_id] = cancel_event
 
-        task = asyncio.create_task(self._run_orchestrated_lifecycle(scan_id, scan_config, cancel_event))
-        self.active_tasks[scan_id] = task
-        task.add_done_callback(lambda t: self._cleanup_scan(scan_id))
-        logger.info(f"ScanOrchestrator dispatched background worker for {scan_id}")
+        dispatched_celery = False
+        try:
+            if os.getenv("USE_CELERY", "false").lower() == "true":
+                from app.workers.tasks import run_scan_task
+                run_scan_task.delay(scan_id, scan_config)
+                dispatched_celery = True
+                logger.info(f"Scan {scan_id} dispatched to Celery background worker queue.")
+        except Exception as e:
+            logger.debug(f"Celery dispatch omitted or failed: {e}. Falling back to asyncio task runner.")
+
+        if not dispatched_celery:
+            task = asyncio.create_task(self._run_orchestrated_lifecycle(scan_id, scan_config, cancel_event))
+            self.active_tasks[scan_id] = task
+            task.add_done_callback(lambda t: self._cleanup_scan(scan_id))
+            logger.info(f"ScanOrchestrator dispatched background worker for {scan_id}")
 
     def cancel_scan(self, scan_id: str) -> bool:
         """Cancel an in-progress scan."""
@@ -1151,6 +1162,49 @@ class ScanOrchestrator:
                             value_type="string"
                         )
                         db.add(leg_p)
+
+            # 4. Sync body/JSON parameters from metadata_json (intercepted XHR/Fetch post_data or sample bodies)
+            if a.metadata_json and isinstance(a.metadata_json, dict):
+                body_candidates = []
+                req_body = (
+                    a.metadata_json.get("request_body") 
+                    or a.metadata_json.get("post_data") 
+                    or a.metadata_json.get("sample_body")
+                )
+                if isinstance(req_body, dict):
+                    body_candidates.extend(req_body.keys())
+                elif isinstance(req_body, str) and req_body.strip():
+                    try:
+                        import json
+                        parsed_b = json.loads(req_body)
+                        if isinstance(parsed_b, dict):
+                            body_candidates.extend(parsed_b.keys())
+                    except Exception:
+                        pass
+                    if not body_candidates:
+                        try:
+                            parsed_qs = urllib.parse.parse_qs(req_body)
+                            if parsed_qs:
+                                body_candidates.extend(parsed_qs.keys())
+                        except Exception:
+                            pass
+                for bname in body_candidates:
+                    bname_str = str(bname).strip()
+                    if bname_str:
+                        chk = await db.execute(
+                            select(Parameter).where(
+                                Parameter.endpoint_id == legacy_ep.id,
+                                Parameter.name == bname_str
+                            )
+                        )
+                        if not chk.scalar_one_or_none():
+                            leg_p = Parameter(
+                                endpoint_id=legacy_ep.id,
+                                name=bname_str,
+                                location="body",
+                                value_type="string"
+                            )
+                            db.add(leg_p)
 
         await db.commit()
         return synced

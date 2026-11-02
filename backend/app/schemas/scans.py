@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
@@ -84,9 +84,24 @@ class ParameterResponse(BaseModel):
     endpoint_id: str
     name: str
     location: str
-    value_type: str
-    endpoint_method: str
-    endpoint_path: str
+    value_type: Optional[str] = "string"
+    endpoint_method: Optional[str] = "GET"
+    endpoint_path: Optional[str] = ""
+    model_config = ConfigDict(from_attributes=True)
+
+class EndpointDetailResponse(BaseModel):
+    id: str
+    scan_id: str
+    url: str
+    path: str
+    method: str
+    status_code: Optional[int] = 200
+    content_type: Optional[str] = None
+    depth: Optional[int] = 0
+    discovered_from: Optional[str] = None
+    is_api: Optional[bool] = False
+    priority_score: Optional[float] = 0.0
+    parameters: list[ParameterResponse] = []
     model_config = ConfigDict(from_attributes=True)
     
 class AttackSurfaceNodeResponse(BaseModel):
@@ -149,6 +164,15 @@ class FindingResponse(BaseModel):
     created_at: Optional[datetime] = None
     evidence: list[EvidenceResponse] = []
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("parameter", mode="before")
+    @classmethod
+    def convert_parameter(cls, v: Any) -> Optional[str]:
+        if v is None:
+            return None
+        if hasattr(v, "name"):
+            return getattr(v, "name")
+        return str(v)
 
 class FindingsMetricsResponse(BaseModel):
     total: int = 0

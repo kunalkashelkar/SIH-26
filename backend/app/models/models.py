@@ -219,6 +219,18 @@ class ScanLog(Base):
     
     scan = relationship("Scan", back_populates="logs")
 
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    id = Column(String, primary_key=True, default=generate_uuid)
+    actor_id = Column(String, nullable=True, index=True)
+    action = Column(String, nullable=False, index=True)
+    resource_type = Column(String, nullable=False, index=True)
+    resource_id = Column(String, nullable=True, index=True)
+    request_id = Column(String, nullable=True, index=True)
+    outcome = Column(String, default="SUCCESS", index=True)  # SUCCESS, FAILURE, DENIED
+    details = Column(JSON, nullable=True, default=dict)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
 # Register unified discovery models with Base metadata
 from app.models.discovery import (
     DiscoveryStatus, DiscoverySource, AssetType, ScanMode,

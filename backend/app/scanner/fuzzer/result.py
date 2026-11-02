@@ -6,9 +6,9 @@ class FuzzTestResult(BaseModel):
     scan_id: str
     endpoint_id: str
     parameter_id: Optional[str] = None
-    parameter_name: str
-    category: str
-    payload: str
+    parameter_name: str = ""
+    category: str = "INPUT_VALIDATION"
+    payload: str = ""
     status_code: Optional[int] = None
     response_time_ms: float = 0.0
     response_snippet: str = ""

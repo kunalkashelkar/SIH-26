@@ -98,8 +98,8 @@ async def list_findings(
 
         if f.parameter:
             resp.parameter_name = f.parameter.name
-        elif f.parameter:
-            resp.parameter_name = f.parameter
+        elif f.parameter_name:
+            resp.parameter_name = f.parameter_name
 
         # Transparent explainable priority reasons
         reasons = [

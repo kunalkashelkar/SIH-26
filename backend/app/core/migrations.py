@@ -35,16 +35,29 @@ async def run_safe_schema_migrations():
         ("findings", "last_updated_at", "DATETIME"),
     ]
 
+    index_migrations = [
+        ("idx_scans_user_id", "scans", "user_id"),
+        ("idx_scans_status", "scans", "status"),
+        ("idx_findings_scan_severity", "findings", "scan_id, severity"),
+        ("idx_endpoints_scan_id", "endpoints", "scan_id"),
+        ("idx_parameters_endpoint_id", "parameters", "endpoint_id")
+    ]
+
     async with engine.begin() as conn:
         for table, col, col_type in column_migrations:
             try:
-                # Works on SQLite and PostgreSQL
                 await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type};"))
                 logger.info(f"Successfully migrated schema: added column {table}.{col}")
             except Exception as e:
-                # Column already exists
                 err_str = str(e).lower()
                 if "duplicate column" in err_str or "already exists" in err_str or "no such column" not in err_str:
                     logger.debug(f"Column {table}.{col} already exists; skipping.")
                 else:
                     logger.warning(f"Notice on column migration {table}.{col}: {e}")
+
+        for idx_name, table, cols in index_migrations:
+            try:
+                await conn.execute(text(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({cols});"))
+                logger.debug(f"Ensured index {idx_name} on {table}({cols})")
+            except Exception as e:
+                logger.debug(f"Notice on index creation {idx_name}: {e}")

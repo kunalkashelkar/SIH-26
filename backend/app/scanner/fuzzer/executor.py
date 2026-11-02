@@ -31,17 +31,36 @@ class FuzzExecutor:
         url = test.target_url
         params = {}
         data = {}
+        json_body = None
         headers = {}
+
+        is_api_endpoint = "/api/" in url or "/rest/" in url or test.parameter_location == "json"
 
         if test.parameter_location == "query":
             # Append query param
             params[test.parameter_name] = test.payload
-        elif test.parameter_location == "body":
-            data[test.parameter_name] = test.payload
+        elif test.parameter_location in ["body", "json"]:
+            if is_api_endpoint or method in ["POST", "PUT", "PATCH"]:
+                val = test.payload
+                if val == "null":
+                    val = None
+                elif val == "true":
+                    val = True
+                elif val == "false":
+                    val = False
+                elif isinstance(val, str) and val.isdigit():
+                    try:
+                        val = int(val)
+                    except Exception:
+                        pass
+                json_body = {test.parameter_name: val}
+                headers["Content-Type"] = "application/json"
+            else:
+                data[test.parameter_name] = test.payload
         elif test.parameter_location == "header":
-            headers[test.parameter_name] = test.payload
+            headers[test.parameter_name] = str(test.payload)
         elif test.parameter_location == "path":
-            url = url.replace(f"{{{test.parameter_name}}}", urllib.parse.quote(test.payload))
+            url = url.replace(f"{{{test.parameter_name}}}", urllib.parse.quote(str(test.payload)))
         else:
             params[test.parameter_name] = test.payload
 
@@ -52,6 +71,7 @@ class FuzzExecutor:
                 url=url,
                 params=params if params else None,
                 data=data if data else None,
+                json=json_body if json_body is not None else None,
                 headers=headers if headers else None
             )
 
