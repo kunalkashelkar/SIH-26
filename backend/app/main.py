@@ -16,6 +16,7 @@ from app.api.targets import router as targets_router
 from app.api.projects import router as projects_router
 from app.api.payloads import router as payloads_router
 from app.api.reports import router as reports_router
+from app.api.repositories import router as repositories_router
 from app.api.ml import router as ml_router
 from app.ml.engine import MLEngine
 
@@ -31,6 +32,9 @@ async def lifespan(app: FastAPI):
     # Ensure database schema is created
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    # Apply additive migrations
+    from app.core.migrations import run_safe_schema_migrations
+    await run_safe_schema_migrations()
     # Seed initial payload library, project, and target
     await seed_initial_data()
     # Initialize ML Inference Engine (loads Phase 14 model & preprocessor)
@@ -39,6 +43,9 @@ async def lifespan(app: FastAPI):
         logger.info("ML Inference Engine ready on application startup.")
     else:
         logger.warning("ML Inference Engine initialized with warnings (check final_model directory).")
+    # Recover interrupted scans from previous process/worker restarts
+    from app.scanner.orchestrator import scan_orchestrator
+    await scan_orchestrator.recover_interrupted_scans()
     yield
 
 app = FastAPI(
@@ -66,14 +73,31 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": "Internal server error", "message": str(exc)},
     )
 
-# Mount routers
+# Mount routers - Legacy & v1 conventions
 app.include_router(health_router, prefix="/api", tags=["Health"])
+app.include_router(health_router, prefix="/api/v1", tags=["Health"])
+
+app.include_router(repositories_router, prefix="/api/repositories", tags=["Repositories"])
+app.include_router(repositories_router, prefix="/api/v1/repositories", tags=["Repositories"])
+
 app.include_router(scans_router, prefix="/api/scans", tags=["Scans"])
+app.include_router(scans_router, prefix="/api/v1/scans", tags=["Scans"])
+
 app.include_router(findings_router, prefix="/api/findings", tags=["Findings"])
+app.include_router(findings_router, prefix="/api/v1/findings", tags=["Findings"])
+
 app.include_router(targets_router, prefix="/api/targets", tags=["Targets"])
+app.include_router(targets_router, prefix="/api/v1/targets", tags=["Targets"])
+
 app.include_router(projects_router, prefix="/api/projects", tags=["Projects"])
+app.include_router(projects_router, prefix="/api/v1/projects", tags=["Projects"])
+
 app.include_router(payloads_router, prefix="/api/payloads", tags=["Payloads"])
+app.include_router(payloads_router, prefix="/api/v1/payloads", tags=["Payloads"])
+
 app.include_router(reports_router, prefix="/api/reports", tags=["Reports"])
+app.include_router(reports_router, prefix="/api/v1/reports", tags=["Reports"])
+
 app.include_router(ml_router)
 
 if __name__ == "__main__":

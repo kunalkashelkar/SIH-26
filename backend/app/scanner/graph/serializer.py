@@ -35,7 +35,12 @@ class GraphSerializer:
             "node_counts_by_type": metrics.get("node_counts_by_type", {}),
             "density": metrics.get("density", 0.0),
             "is_connected": metrics.get("is_connected", False),
-            "number_connected_components": metrics.get("number_connected_components", 0)
+            "number_connected_components": metrics.get("number_connected_components", 0),
+            "max_depth": graph.graph.get("max_depth"),
+            "high_risk_only": graph.graph.get("high_risk_only", False),
+            "is_truncated": graph.graph.get("is_truncated", False),
+            "original_total_nodes": graph.graph.get("original_total_nodes"),
+            "original_total_edges": graph.graph.get("original_total_edges")
         }
 
         return {

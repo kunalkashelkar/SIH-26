@@ -32,10 +32,21 @@ class EdgeType:
     PARAMETER_TO_FINDING = "HAS_FINDING"
 
 class AttackSurfaceGraphBuilder:
-    def __init__(self, db: AsyncSession, scan_id: str, max_depth: int | None = None):
+    def __init__(
+        self,
+        db: AsyncSession,
+        scan_id: str,
+        max_depth: int | None = 5,
+        high_risk_only: bool = False,
+        root_node_id: str | None = None
+    ):
         self.db = db
         self.scan_id = scan_id
-        self.max_depth = max_depth
+        # Enforce server-side range: 3 <= depth <= 10, default 5
+        raw_depth = max_depth if max_depth is not None else 5
+        self.max_depth = max(3, min(10, raw_depth))
+        self.high_risk_only = high_risk_only
+        self.root_node_id = root_node_id
         self.graph = nx.DiGraph()
 
     async def build(self) -> nx.DiGraph:
@@ -167,9 +178,6 @@ class AttackSurfaceGraphBuilder:
             .options(selectinload(Endpoint.parameters))
             .where(Endpoint.scan_id == self.scan_id)
         )
-        if self.max_depth is not None and self.max_depth > 0:
-            ep_query = ep_query.where(Endpoint.depth <= self.max_depth)
-
         res_ep = await self.db.execute(ep_query)
         endpoints = res_ep.scalars().all()
 
@@ -322,8 +330,145 @@ class AttackSurfaceGraphBuilder:
                     metadata={"severity": f.severity}
                 )
 
+        # 7. Integrate Unified Discovered Assets & Multi-Layer Relationships
+        from app.models.discovery import DiscoveredAsset, AssetRelationship, SourceEvidence
+        stmt_da = (
+            select(DiscoveredAsset)
+            .options(selectinload(DiscoveredAsset.source_evidences))
+            .where(DiscoveredAsset.scan_id == self.scan_id)
+        )
+        res_da = await self.db.execute(stmt_da)
+        discovered_assets = res_da.scalars().all()
+
+        da_node_map = {}
+        for da in discovered_assets:
+            da_node_id = f"asset_{da.id}"
+            da_node_map[da.id] = da_node_id
+            
+            # Skip duplicate if endpoint node already added
+            if da.asset_type == "HTTP_ENDPOINT" and any(ep.path == da.path for ep in endpoints):
+                continue
+
+            meta = dict(da.metadata_json or {})
+            meta.update({
+                "asset_id": da.id,
+                "asset_type": da.asset_type,
+                "discovery_status": da.discovery_status,
+                "confidence": da.confidence,
+                "path": da.path,
+                "url": da.url,
+                "method": da.method
+            })
+            if da.source_evidences:
+                meta["source_file"] = da.source_evidences[0].file_path
+                meta["source_line"] = da.source_evidences[0].line_start
+
+            self.graph.add_node(
+                da_node_id,
+                id=da_node_id,
+                type=da.asset_type,
+                label=da.identifier or da.path or da.name or f"{da.asset_type} Asset",
+                metadata=meta
+            )
+
+        # 8. Fetch and link AssetRelationships
+        stmt_rel = select(AssetRelationship).where(AssetRelationship.scan_id == self.scan_id)
+        res_rel = await self.db.execute(stmt_rel)
+        relations = res_rel.scalars().all()
+
+        for rel in relations:
+            src_node = da_node_map.get(rel.source_asset_id)
+            tgt_node = da_node_map.get(rel.target_asset_id)
+            if src_node and tgt_node and self.graph.has_node(src_node) and self.graph.has_node(tgt_node):
+                self.graph.add_edge(
+                    src_node,
+                    tgt_node,
+                    relationship=rel.relationship_type,
+                    metadata=rel.metadata_json or {}
+                )
+
+        # Ensure all orphaned discovered assets have a path from the root domain
+        for da_id, da_node_id in da_node_map.items():
+            if self.graph.has_node(da_node_id) and self.graph.in_degree(da_node_id) == 0 and da_node_id != target_node_id:
+                self.graph.add_edge(
+                    domain_node_id,
+                    da_node_id,
+                    relationship="CONTAINS_ASSET",
+                    metadata={}
+                )
+
+        original_total_nodes = self.graph.number_of_nodes()
+        original_total_edges = self.graph.number_of_edges()
+
+        # Determine root node for traversal
+        root_node = None
+        if self.root_node_id and self.graph.has_node(self.root_node_id):
+            root_node = self.root_node_id
+        elif self.graph.has_node(target_node_id):
+            root_node = target_node_id
+        elif self.graph.has_node(domain_node_id):
+            root_node = domain_node_id
+        elif self.graph.nodes:
+            root_node = next(iter(self.graph.nodes))
+
+        # A. BFS Traversal by Maximum Edge Distance (max_depth: 3 to 10)
+        if root_node and self.graph.number_of_nodes() > 0:
+            undirected_g = self.graph.to_undirected()
+            try:
+                distances = nx.single_source_shortest_path_length(undirected_g, source=root_node)
+                depth_eligible_nodes = {n for n, d in distances.items() if d <= self.max_depth}
+                nodes_to_prune = set(self.graph.nodes) - depth_eligible_nodes
+                if nodes_to_prune:
+                    self.graph.remove_nodes_from(nodes_to_prune)
+            except Exception as e:
+                logger.warning(f"Error computing graph depth traversal: {e}")
+
+        # B. High-Risk-Only Filter (CRITICAL & HIGH findings and affected attack paths)
+        if self.high_risk_only:
+            high_risk_finding_nodes = set()
+            for node_id, data in self.graph.nodes(data=True):
+                if data.get("type") == NodeType.FINDING:
+                    meta = data.get("metadata", {})
+                    sev = str(meta.get("severity") or "").upper()
+                    prio = str(meta.get("priority") or "").upper()
+                    if sev in ("CRITICAL", "HIGH") or prio in ("CRITICAL", "HIGH"):
+                        high_risk_finding_nodes.add(node_id)
+
+            if high_risk_finding_nodes and root_node:
+                undirected_g = self.graph.to_undirected()
+                retained_nodes = {root_node}
+                for hr_node in high_risk_finding_nodes:
+                    retained_nodes.add(hr_node)
+                    try:
+                        path = nx.shortest_path(undirected_g, source=root_node, target=hr_node)
+                        retained_nodes.update(path)
+                    except (nx.NetworkXNoPath, nx.NodeNotFound):
+                        pass
+                    # Include direct neighbors (parameters / endpoints affected by this finding)
+                    if hr_node in undirected_g:
+                        retained_nodes.update(undirected_g.neighbors(hr_node))
+                
+                nodes_to_prune = set(self.graph.nodes) - retained_nodes
+                self.graph.remove_nodes_from(nodes_to_prune)
+            else:
+                # No critical/high findings exist in this scan: keep root node (if present)
+                if root_node and self.graph.has_node(root_node):
+                    nodes_to_prune = set(self.graph.nodes) - {root_node}
+                    self.graph.remove_nodes_from(nodes_to_prune)
+
+        # Record graph-level metadata
+        is_truncated = self.graph.number_of_nodes() < original_total_nodes
+        self.graph.graph["max_depth"] = self.max_depth
+        self.graph.graph["high_risk_only"] = self.high_risk_only
+        self.graph.graph["is_truncated"] = is_truncated
+        self.graph.graph["original_total_nodes"] = original_total_nodes
+        self.graph.graph["original_total_edges"] = original_total_edges
+        self.graph.graph["root_node"] = root_node
+
         logger.info(
-            f"Graph constructed for scan {self.scan_id} with "
-            f"{self.graph.number_of_nodes()} nodes and {self.graph.number_of_edges()} edges."
+            f"Graph constructed for scan {self.scan_id}: "
+            f"{self.graph.number_of_nodes()} visible nodes (original: {original_total_nodes}), "
+            f"{self.graph.number_of_edges()} visible edges (original: {original_total_edges}), "
+            f"depth={self.max_depth}, high_risk_only={self.high_risk_only}, truncated={is_truncated}."
         )
         return self.graph

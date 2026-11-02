@@ -13,7 +13,7 @@ class ResilientHttpClient:
         
         # Configure httpx limits
         limits = httpx.Limits(max_connections=concurrency, max_keepalive_connections=concurrency)
-        self.client = httpx.AsyncClient(timeout=httpx.Timeout(timeout), limits=limits)
+        self.client = httpx.AsyncClient(timeout=httpx.Timeout(timeout), limits=limits, follow_redirects=True)
 
     async def get(self, url: str, **kwargs):
         return await self._request("GET", url, **kwargs)

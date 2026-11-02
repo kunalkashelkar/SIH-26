@@ -56,8 +56,8 @@ export default function AttackSurface() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Manual Depth Configuration (Defaults to 3, fully interactive)
-  const [selectedDepth, setSelectedDepth] = useState<number>(3);
+  // Manual Depth Configuration (Defaults to 5, range: 3-10, fully interactive)
+  const [selectedDepth, setSelectedDepth] = useState<number>(5);
 
   // Focus & View Modes
   const [focusMode, setFocusMode] = useState<'OVERVIEW' | 'VULNERABILITIES' | 'ATTACK_PATHS'>('OVERVIEW');
@@ -87,7 +87,7 @@ export default function AttackSurface() {
         const currentScanId = scanId || localStorage.getItem('last_active_scan_id') || 'latest';
 
         const [graphRes, priorityRes, scanStatusRes] = await Promise.allSettled([
-          scanService.getScanGraph(currentScanId, selectedDepth),
+          scanService.getScanGraph(currentScanId, selectedDepth, filterVulnOnly),
           scanService.getScanPriorities(currentScanId),
           scanService.getScanStatus(currentScanId)
         ]);
@@ -116,7 +116,7 @@ export default function AttackSurface() {
       }
     }
     loadData();
-  }, [scanId, selectedDepth]);
+  }, [scanId, selectedDepth, filterVulnOnly]);
 
   // 2. Fetch Real ML prediction when an Endpoint node is selected
   useEffect(() => {
@@ -382,6 +382,13 @@ export default function AttackSurface() {
       case 'ENDPOINT': return 'link';
       case 'PARAMETER': return 'data_object';
       case 'FINDING': return 'bug_report';
+      case 'PAGE': return 'web';
+      case 'FRONTEND_ROUTE': return 'call_split';
+      case 'FORM': return 'dynamic_form';
+      case 'COMPONENT': return 'widgets';
+      case 'SOURCE_FILE': return 'description';
+      case 'BACKEND_CONTROLLER': return 'memory';
+      case 'AUTH_DEPENDENCY': return 'lock';
       default: return 'hub';
     }
   };
@@ -405,26 +412,66 @@ export default function AttackSurface() {
               <span className="as-stat-value text-primary">Level {selectedDepth}</span>
             </div>
             <div className="as-stat-box">
-              <span className="as-stat-label">Rendered Nodes</span>
-              <span className="as-stat-value">{layout.nodes.length}</span>
+              <span className="as-stat-label">Visible Nodes</span>
+              <span className="as-stat-value">
+                {layout.nodes.length}
+                {graphData?.stats?.original_total_nodes && graphData.stats.original_total_nodes > layout.nodes.length ? (
+                  <small style={{fontSize: '11px', color: 'var(--color-on-surface-variant)', marginLeft: '4px'}}>
+                    /{graphData.stats.original_total_nodes}
+                  </small>
+                ) : null}
+              </span>
             </div>
             <div className="as-stat-box">
-              <span className="as-stat-label">Rendered Edges</span>
-              <span className="as-stat-value">{layout.edges.length}</span>
+              <span className="as-stat-label">Visible Edges</span>
+              <span className="as-stat-value">
+                {layout.edges.length}
+                {graphData?.stats?.original_total_edges && graphData.stats.original_total_edges > layout.edges.length ? (
+                  <small style={{fontSize: '11px', color: 'var(--color-on-surface-variant)', marginLeft: '4px'}}>
+                    /{graphData.stats.original_total_edges}
+                  </small>
+                ) : null}
+              </span>
             </div>
+            {graphData?.stats?.is_truncated && (
+              <div className="as-stat-box" style={{borderLeft: '2px solid #eab308'}}>
+                <span className="as-stat-label" style={{color: '#eab308'}}>Status</span>
+                <span className="as-stat-value" style={{fontSize: '11px', color: '#eab308'}}>
+                  Truncated (Depth {selectedDepth})
+                </span>
+              </div>
+            )}
+            {filterVulnOnly && (
+              <div className="as-stat-box" style={{borderLeft: '2px solid #ef4444'}}>
+                <span className="as-stat-label" style={{color: '#ef4444'}}>Filter</span>
+                <span className="as-stat-value" style={{fontSize: '11px', color: '#ef4444'}}>
+                  High-Risk Only
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
         <div className="as-header-actions">
-          {/* Depth Controller Buttons */}
+          <button
+            className="btn-outline-small"
+            style={{display: 'flex', alignItems: 'center', gap: '6px'}}
+            onClick={() => navigate(`/scans/${scanId || scanInfo?.scan_id || 'latest'}/discovery`)}
+            title="View Discovered Pages, Endpoints, Source Code, and Forms"
+          >
+            <span className="material-symbols-outlined" style={{fontSize: '15px'}}>inventory_2</span>
+            Discovery Inventory
+          </button>
+          
+          {/* Depth Controller Buttons (3 to 10) */}
           <div className="depth-selector-group">
             <span className="depth-label">Depth:</span>
-            {[1, 2, 3, 4, 5].map(d => (
+            {[3, 4, 5, 6, 7, 8, 9, 10].map(d => (
               <button
                 key={d}
                 className={`btn-depth ${selectedDepth === d ? 'active' : ''}`}
                 onClick={() => setSelectedDepth(d)}
-                title={`Render up to Depth ${d}`}
+                title={`Traverse attack graph up to edge distance ${d}`}
               >
                 {d}
               </button>

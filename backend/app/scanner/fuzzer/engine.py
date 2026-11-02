@@ -60,6 +60,12 @@ class FuzzingEngine:
         res = await self.db.execute(stmt)
         endpoints = res.scalars().all()
 
+        # Context-Aware Target Selection
+        from app.scanner.fuzzer.target_selector import TargetSelector
+        from app.scanner.context.context_enricher import ContextEnricher
+        target_selector = TargetSelector(self.db, self.scan_id)
+        endpoints = await target_selector.select_eligible_endpoints(endpoints)
+
         all_test_cases = []
         all_contexts: list[ParameterContext] = []
 
@@ -70,6 +76,8 @@ class FuzzingEngine:
             for param in ep.parameters:
                 ctx = ParameterContextExtractor.extract_context(param, ep)
                 TestSelector.select_tests(ctx)
+                # Source-Aware Context Enrichment
+                ctx = await ContextEnricher.enrich_context(self.db, self.scan_id, ctx, ep, param)
                 all_contexts.append(ctx)
 
                 test_cases = PayloadManager.generate_tests_for_parameter(self.scan_id, ep, ctx)

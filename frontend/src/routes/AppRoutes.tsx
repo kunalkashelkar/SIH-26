@@ -19,6 +19,7 @@ import Projects from '../pages/Projects';
 import Targets from '../pages/Targets';
 import Payloads from '../pages/Payloads';
 import Documentation from '../pages/Documentation';
+import DiscoveryDashboard from '../pages/DiscoveryDashboard';
 import AppLayout from '../components/layout/AppLayout';
 
 
@@ -37,11 +38,14 @@ export default function AppRoutes() {
         <Route path="/scans/new" element={<NewScan />} />
         <Route path="/scans/:scanId" element={<ScanDetails />} />
         <Route path="/scans/:scanId/progress" element={<LiveScan />} />
+        <Route path="/scans/:scanId/live" element={<LiveScan />} />
+        <Route path="/scans/:scanId/discovery" element={<DiscoveryDashboard />} />
         <Route path="/scans/:scanId/attack-surface" element={<AttackSurface />} />
         <Route path="/scans/:scanId/findings" element={<Findings />} />
         <Route path="/scans/:scanId/fuzzing" element={<FuzzingActivity />} />
         
         {/* Global Nav */}
+        <Route path="/discovery" element={<DiscoveryDashboard />} />
         <Route path="/attack-surface" element={<AttackSurface />} />
         <Route path="/findings" element={<Findings />} />
         <Route path="/fuzzing" element={<FuzzingActivity />} />

@@ -20,6 +20,11 @@ class GraphStats(BaseModel):
     density: float
     is_connected: bool
     number_connected_components: int
+    max_depth: Optional[int] = None
+    high_risk_only: Optional[bool] = False
+    is_truncated: Optional[bool] = False
+    original_total_nodes: Optional[int] = None
+    original_total_edges: Optional[int] = None
 
 class GraphResponse(BaseModel):
     nodes: list[GraphNode]

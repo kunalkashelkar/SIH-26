@@ -3,6 +3,7 @@ import logging
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 
 from app.models.models import Finding, Evidence, Endpoint, Parameter
 from app.scanner.http_client import ResilientHttpClient
@@ -105,21 +106,52 @@ class EvidenceValidator:
                     raw_confidence_level=raw_confidence.value
                 )
 
+                # Traceability: Link finding with DiscoveredAsset and SourceEvidence
+                from app.models.discovery import DiscoveredAsset
+                a_res = await self.db.execute(
+                    select(DiscoveredAsset)
+                    .options(selectinload(DiscoveredAsset.source_evidences))
+                    .where(
+                        DiscoveredAsset.scan_id == self.scan_id,
+                        DiscoveredAsset.path == endpoint.path,
+                        DiscoveredAsset.method == (endpoint.method or "GET").upper()
+                    )
+                )
+                asset = a_res.scalars().first()
+                source_trace = ""
+                if asset:
+                    from sqlalchemy.orm.attributes import flag_modified
+                    meta = dict(asset.metadata_json or {})
+                    meta["testing_lifecycle"] = "VALIDATED_FINDING"
+                    asset.metadata_json = meta
+                    flag_modified(asset, "metadata_json")
+                    if asset.source_evidences:
+                        sev = asset.source_evidences[0]
+                        source_trace = f" | [Source Traceability: {sev.file_path}:{sev.line_start}]"
+
                 finding = Finding(
                     id=finding_id,
                     scan_id=self.scan_id,
                     endpoint_id=endpoint.id,
                     parameter_id=anomaly.parameter_id,
+                    title=evaluated.vulnerability_type,
                     vulnerability_type=evaluated.vulnerability_type,
                     severity=evaluated.severity,
                     confidence=str(evaluated.confidence_score),
                     priority=evaluated.priority,
-                    status="open",
-                    description=evaluated.description,
+                    status="verified",
+                    description=evaluated.description + source_trace,
+                    technical_details=f"Endpoint: {endpoint.method} {endpoint.path}\nParameter: {anomaly.parameter_name or 'N/A'}\nReason: {reason}",
                     impact=evaluated.impact,
                     cwe=evaluated.cwe,
                     owasp_category=evaluated.owasp_category,
-                    remediation=evaluated.remediation
+                    remediation=evaluated.remediation,
+                    affected_url=endpoint.url,
+                    affected_endpoint=endpoint.path,
+                    http_method=endpoint.method,
+                    parameter=anomaly.parameter_name,
+                    detection_method="DYNAMIC_FUZZING",
+                    validation_method="DIFFERENTIAL_PROBE"
                 )
                 self.db.add(finding)
 
@@ -128,7 +160,7 @@ class EvidenceValidator:
                     anomaly=anomaly,
                     verdict=verdict,
                     confidence=raw_confidence,
-                    reason=f"{reason} (CVSS: {evaluated.cvss_score}, Vector: {evaluated.cvss_vector})"
+                    reason=f"{reason} (CVSS: {evaluated.cvss_score}, Vector: {evaluated.cvss_vector}){source_trace}"
                 )
 
                 evidence = Evidence(

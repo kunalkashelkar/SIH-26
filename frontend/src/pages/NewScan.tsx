@@ -1,16 +1,75 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { scanService } from '../services/api';
+import { scanService, RepositoryMetadataResponse } from '../services/api';
 import './NewScan.css';
 
 export default function NewScan() {
   const navigate = useNavigate();
   
-  // 1. Target Details
+  // 1. Discovery Architecture Mode
+  const [discoveryMode, setDiscoveryMode] = useState<"WEBSITE_ONLY" | "GITHUB_ONLY" | "HYBRID">("WEBSITE_ONLY");
+  const [repositoryUrl, setRepositoryUrl] = useState("https://github.com/OWASP/NodeGoat");
+  const [repositoryBranch, setRepositoryBranch] = useState("main");
+  const [repositoryCommitSha, setRepositoryCommitSha] = useState("");
+  const [githubToken, setGithubToken] = useState("");
+  const [repoMetadata, setRepoMetadata] = useState<RepositoryMetadataResponse | null>(null);
+  const [isValidatingRepo, setIsValidatingRepo] = useState(false);
+  const [repoValidationStatus, setRepoValidationStatus] = useState<{
+    status: 'idle' | 'validating' | 'valid' | 'invalid';
+    message: string;
+  }>({ status: 'idle', message: '' });
+
+  // 2. Target Details
   const [targetUrl, setTargetUrl] = useState("https://example.com");
   const [scanName, setScanName] = useState("Production Scan");
   
-  // 2. Scope Definition
+  // Optional Authentication Details
+  const [showAuthSettings, setShowAuthSettings] = useState(false);
+  const [sessionCookie, setSessionCookie] = useState("");
+  const [authHeader, setAuthHeader] = useState("");
+
+  // Validation feedback
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
+  const handleValidateRepository = async () => {
+    if (!repositoryUrl.trim()) {
+      setRepoValidationStatus({ status: 'invalid', message: 'GitHub repository URL is required.' });
+      return;
+    }
+    setIsValidatingRepo(true);
+    setRepoValidationStatus({ status: 'validating', message: 'Connecting to GitHub API...' });
+    try {
+      const meta = await scanService.validateRepository({
+        repository_url: repositoryUrl.trim(),
+        branch: repositoryBranch.trim() || undefined,
+        commit_sha: repositoryCommitSha.trim() || undefined,
+        github_token: githubToken.trim() || undefined
+      });
+      setRepoMetadata(meta);
+      if (meta.valid) {
+        if (meta.selected_branch) setRepositoryBranch(meta.selected_branch);
+        if (meta.resolved_commit_sha) setRepositoryCommitSha(meta.resolved_commit_sha);
+        setRepoValidationStatus({
+          status: 'valid',
+          message: meta.message || `Connected to ${meta.owner}/${meta.repository} (${meta.visibility})`
+        });
+      } else {
+        setRepoValidationStatus({
+          status: 'invalid',
+          message: meta.message || 'Unable to access repository.'
+        });
+      }
+    } catch (err: any) {
+      setRepoValidationStatus({
+        status: 'invalid',
+        message: err.message || 'Validation request failed.'
+      });
+    } finally {
+      setIsValidatingRepo(false);
+    }
+  };
+  
+  // 3. Scope Definition
   const [allowedDomains, setAllowedDomains] = useState<string[]>(["*.example.com", "api.example-internal.net"]);
   const [newDomainInput, setNewDomainInput] = useState("");
   const [showDomainInput, setShowDomainInput] = useState(false);
@@ -19,18 +78,18 @@ export default function NewScan() {
   const [newPathInput, setNewPathInput] = useState("");
   const [showPathInput, setShowPathInput] = useState(false);
 
-  // 3. Traversal Limits
+  // 4. Traversal Limits
   const [crawlDepth, setCrawlDepth] = useState(3);
   const [reqLimit, setReqLimit] = useState(10000);
   const [respectRobots, setRespectRobots] = useState(true);
 
-  // 4. Discovery Modules
+  // 5. Discovery Modules
   const [enableWebCrawling, setEnableWebCrawling] = useState(true);
   const [enableJsAnalysis, setEnableJsAnalysis] = useState(true);
   const [enableApiDiscovery, setEnableApiDiscovery] = useState(true);
   const [enableSubdomainDiscovery, setEnableSubdomainDiscovery] = useState(false);
 
-  // 5. Testing Profile
+  // 6. Testing Profile
   const [scanMode, setScanMode] = useState<"Passive" | "Standard" | "Aggressive">("Standard");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -48,6 +107,7 @@ export default function NewScan() {
     if (enableJsAnalysis) baseMinutes += 20;
     if (enableApiDiscovery) baseMinutes += 15;
     if (enableSubdomainDiscovery) baseMinutes += 25;
+    if (discoveryMode === "HYBRID") baseMinutes += 15;
     
     // Impact of Profile
     if (scanMode === "Passive") baseMinutes = Math.round(baseMinutes * 0.5);
@@ -58,7 +118,7 @@ export default function NewScan() {
       return `Est. Duration: ~${baseMinutes} mins`;
     }
     return `Est. Duration: ~${hours} hours`;
-  }, [crawlDepth, reqLimit, enableJsAnalysis, enableApiDiscovery, enableSubdomainDiscovery, scanMode]);
+  }, [crawlDepth, reqLimit, enableJsAnalysis, enableApiDiscovery, enableSubdomainDiscovery, scanMode, discoveryMode]);
 
   // Handle Domain additions/deletions
   const handleAddDomain = () => {
@@ -88,20 +148,60 @@ export default function NewScan() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setValidationErrors({});
+
+    // Validate inputs
+    const errors: Record<string, string> = {};
+    if (discoveryMode === "WEBSITE_ONLY" || discoveryMode === "HYBRID") {
+      if (!targetUrl.trim()) {
+        errors.targetUrl = "Authorized website URL is required.";
+      } else if (!/^https?:\/\/.+/i.test(targetUrl.trim())) {
+        errors.targetUrl = "Must be a valid HTTP or HTTPS URL (e.g. https://example.com).";
+      }
+    }
+    if (discoveryMode === "GITHUB_ONLY" || discoveryMode === "HYBRID") {
+      if (!repositoryUrl.trim()) {
+        errors.repositoryUrl = "GitHub repository URL is required.";
+      } else if (!repositoryUrl.trim().includes("github.com") && !repositoryUrl.trim().startsWith("git@")) {
+        errors.repositoryUrl = "Must be a valid GitHub URL (e.g. https://github.com/owner/repo).";
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      const data = await scanService.createScan({
-        target_url: targetUrl,
+      const payload: any = {
+        discovery_mode: discoveryMode,
         scan_mode: scanMode,
         max_depth: crawlDepth,
         max_requests: reqLimit,
         enable_subdomain_discovery: enableSubdomainDiscovery,
-        enable_directory_discovery: enableApiDiscovery
-      });
+        enable_directory_discovery: enableApiDiscovery,
+        allowed_domains: allowedDomains,
+        excluded_paths: excludedPaths
+      };
+
+      if (discoveryMode === "WEBSITE_ONLY" || discoveryMode === "HYBRID") {
+        payload.website_url = targetUrl.trim();
+        payload.target_url = targetUrl.trim();
+        if (sessionCookie.trim()) payload.session_cookie = sessionCookie.trim();
+        if (authHeader.trim()) payload.auth_header = authHeader.trim();
+      }
+      if (discoveryMode === "GITHUB_ONLY" || discoveryMode === "HYBRID") {
+        payload.repository_url = repositoryUrl.trim();
+        payload.repository_branch = repositoryBranch.trim() || "main";
+        if (repositoryCommitSha.trim()) payload.repository_commit_sha = repositoryCommitSha.trim();
+        if (githubToken.trim()) payload.github_token = githubToken.trim();
+      }
+
+      const data = await scanService.createScan(payload);
       localStorage.setItem('last_active_scan_id', data.scan_id);
       navigate(`/scans/${data.scan_id}/progress`);
     } catch (error: any) {
-      console.error(error);
       alert(`Failed to start scan: ${error.message || error}`);
       setIsSubmitting(false);
     }
@@ -135,51 +235,338 @@ export default function NewScan() {
 
       <form className="scan-form" onSubmit={handleSubmit}>
         
+        {/* Discovery Architecture Mode Selector */}
+        <section className="form-section">
+          <div className="section-indicator indicator-primary"></div>
+          <div className="section-header">
+            <div className="section-header-title">
+              <span className="material-symbols-outlined text-muted">hub</span>
+              <h2>Discovery Architecture Mode</h2>
+            </div>
+            <span className="section-badge font-mono">PHASE 1 FOUNDATION</span>
+          </div>
+          
+          <div className="section-body">
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px'}}>
+              <div 
+                className={`profile-card ${discoveryMode === 'WEBSITE_ONLY' ? 'selected' : ''}`}
+                onClick={() => setDiscoveryMode('WEBSITE_ONLY')}
+                style={{cursor: 'pointer', padding: '16px', borderRadius: '8px', border: discoveryMode === 'WEBSITE_ONLY' ? '2px solid #00f0ff' : '1px solid rgba(255,255,255,0.1)', background: discoveryMode === 'WEBSITE_ONLY' ? 'rgba(0, 240, 255, 0.08)' : 'rgba(255,255,255,0.02)'}}
+              >
+                <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px'}}>
+                  <span className="material-symbols-outlined" style={{color: '#00f0ff'}}>language</span>
+                  <h3 style={{fontSize: '15px', fontWeight: 600, margin: 0}}>Website Only</h3>
+                </div>
+                <p style={{fontSize: '12px', color: '#94a3b8', margin: 0}}>Static and dynamic crawl, JavaScript rendering, forms, and observed APIs.</p>
+              </div>
+
+              <div 
+                className={`profile-card ${discoveryMode === 'GITHUB_ONLY' ? 'selected' : ''}`}
+                onClick={() => setDiscoveryMode('GITHUB_ONLY')}
+                style={{cursor: 'pointer', padding: '16px', borderRadius: '8px', border: discoveryMode === 'GITHUB_ONLY' ? '2px solid #a855f7' : '1px solid rgba(255,255,255,0.1)', background: discoveryMode === 'GITHUB_ONLY' ? 'rgba(168, 85, 247, 0.08)' : 'rgba(255,255,255,0.02)'}}
+              >
+                <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px'}}>
+                  <span className="material-symbols-outlined" style={{color: '#a855f7'}}>code</span>
+                  <h3 style={{fontSize: '15px', fontWeight: 600, margin: 0}}>GitHub Repo Only</h3>
+                </div>
+                <p style={{fontSize: '12px', color: '#94a3b8', margin: 0}}>Source code AST analysis, backend routers, controllers, and schemas.</p>
+              </div>
+
+              <div 
+                className={`profile-card ${discoveryMode === 'HYBRID' ? 'selected' : ''}`}
+                onClick={() => setDiscoveryMode('HYBRID')}
+                style={{cursor: 'pointer', padding: '16px', borderRadius: '8px', border: discoveryMode === 'HYBRID' ? '2px solid #10b981' : '1px solid rgba(255,255,255,0.1)', background: discoveryMode === 'HYBRID' ? 'rgba(16, 185, 129, 0.08)' : 'rgba(255,255,255,0.02)'}}
+              >
+                <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px'}}>
+                  <span className="material-symbols-outlined" style={{color: '#10b981'}}>alt_route</span>
+                  <h3 style={{fontSize: '15px', fontWeight: 600, margin: 0}}>Combined Hybrid</h3>
+                </div>
+                <p style={{fontSize: '12px', color: '#94a3b8', margin: 0}}>Cross-correlates source code routes with live runtime website endpoints.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Target Details Section */}
         <section className="form-section">
           <div className="section-indicator indicator-primary"></div>
           <div className="section-header">
             <div className="section-header-title">
               <span className="material-symbols-outlined text-muted">target</span>
-              <h2>Target Details</h2>
+              <h2>Scope & Target Parameters</h2>
             </div>
             <span className="section-badge">Required</span>
           </div>
           
           <div className="section-body">
             <div className="grid-cols-2">
-              <div>
-                <label className="form-label font-caps">TARGET URL</label>
-                <div className="input-wrapper">
-                  <span className="material-symbols-outlined input-icon">language</span>
-                  <input 
-                    type="url" 
-                    className="form-input-lg font-mono" 
-                    placeholder="https://example.com" 
-                    value={targetUrl}
-                    onChange={(e) => setTargetUrl(e.target.value)}
-                    required 
-                  />
+              {(discoveryMode === "WEBSITE_ONLY" || discoveryMode === "HYBRID") && (
+                <div>
+                  <label className="form-label font-caps">AUTHORIZED WEBSITE URL</label>
+                  <div className="input-wrapper">
+                    <span className="material-symbols-outlined input-icon">language</span>
+                    <input 
+                      type="url" 
+                      className={`form-input-lg font-mono ${validationErrors.targetUrl ? 'border-error' : ''}`}
+                      placeholder="https://example.com" 
+                      value={targetUrl}
+                      onChange={(e) => {
+                        setTargetUrl(e.target.value);
+                        if (validationErrors.targetUrl) setValidationErrors({...validationErrors, targetUrl: ""});
+                      }}
+                      required 
+                    />
+                  </div>
+                  {validationErrors.targetUrl ? (
+                    <p style={{fontSize: '12px', color: 'var(--color-error)', marginTop: '4px'}}>{validationErrors.targetUrl}</p>
+                  ) : (
+                    <p className="text-muted" style={{fontSize: '12px', marginTop: '6px'}}>Live web application endpoint for crawling & fuzzing.</p>
+                  )}
                 </div>
-                <p className="text-muted" style={{fontSize: '12px', marginTop: '6px'}}>The primary entry point for the scanner.</p>
-              </div>
-              
-              <div>
-                <label className="form-label font-caps">SCAN NAME</label>
-                <div className="input-wrapper">
-                  <span className="material-symbols-outlined input-icon">badge</span>
-                  <input 
-                    type="text" 
-                    className="form-input-lg" 
-                    value={scanName}
-                    onChange={(e) => setScanName(e.target.value)}
-                    required 
-                  />
+              )}
+
+              {(discoveryMode === "GITHUB_ONLY" || discoveryMode === "HYBRID") && (
+                <div style={{display: 'flex', flexDirection: 'column', gap: '14px'}}>
+                  <div>
+                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px'}}>
+                      <label className="form-label font-caps" style={{margin: 0}}>GITHUB REPOSITORY URL</label>
+                      <button
+                        type="button"
+                        onClick={handleValidateRepository}
+                        disabled={isValidatingRepo || !repositoryUrl.trim()}
+                        style={{
+                          background: 'rgba(168, 85, 247, 0.15)',
+                          border: '1px solid rgba(168, 85, 247, 0.4)',
+                          color: '#c084fc',
+                          padding: '3px 10px',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          cursor: isValidatingRepo ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <span className={`material-symbols-outlined ${isValidatingRepo ? 'spin-icon' : ''}`} style={{fontSize: '14px'}}>
+                          {isValidatingRepo ? 'sync' : 'verified'}
+                        </span>
+                        {isValidatingRepo ? 'Validating...' : 'Validate Repository'}
+                      </button>
+                    </div>
+                    <div className="input-wrapper">
+                      <span className="material-symbols-outlined input-icon">code</span>
+                      <input 
+                        type="url" 
+                        className={`form-input-lg font-mono ${validationErrors.repositoryUrl ? 'border-error' : ''}`}
+                        placeholder="https://github.com/owner/repository" 
+                        value={repositoryUrl}
+                        onChange={(e) => {
+                          setRepositoryUrl(e.target.value);
+                          if (validationErrors.repositoryUrl) setValidationErrors({...validationErrors, repositoryUrl: ""});
+                          if (repoValidationStatus.status !== 'idle') {
+                            setRepoValidationStatus({ status: 'idle', message: '' });
+                          }
+                        }}
+                        required 
+                      />
+                    </div>
+                    {validationErrors.repositoryUrl && (
+                      <p style={{fontSize: '12px', color: 'var(--color-error)', marginTop: '4px'}}>{validationErrors.repositoryUrl}</p>
+                    )}
+                    {repoValidationStatus.message && (
+                      <div style={{
+                        marginTop: '8px',
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        background: repoValidationStatus.status === 'valid' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                        border: `1px solid ${repoValidationStatus.status === 'valid' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                        color: repoValidationStatus.status === 'valid' ? '#10b981' : '#ef4444'
+                      }}>
+                        <span className="material-symbols-outlined" style={{fontSize: '16px'}}>
+                          {repoValidationStatus.status === 'valid' ? 'check_circle' : 'error'}
+                        </span>
+                        <span>{repoValidationStatus.message}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Repository Metadata Card (when validated) */}
+                  {repoMetadata && repoMetadata.valid && (
+                    <div style={{
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '8px',
+                      padding: '12px 16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px'
+                    }}>
+                      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+                          <span className="material-symbols-outlined" style={{color: '#a855f7', fontSize: '18px'}}>folder_code</span>
+                          <span style={{fontWeight: 600, fontSize: '13px', color: '#fff'}}>
+                            {repoMetadata.owner} / {repoMetadata.repository}
+                          </span>
+                        </div>
+                        <span style={{
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          textTransform: 'uppercase',
+                          background: repoMetadata.visibility === 'public' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                          color: repoMetadata.visibility === 'public' ? '#10b981' : '#f59e0b',
+                          border: `1px solid ${repoMetadata.visibility === 'public' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`
+                        }}>
+                          {repoMetadata.visibility}
+                        </span>
+                      </div>
+
+                      <div style={{display: 'flex', flexWrap: 'wrap', gap: '14px', fontSize: '12px', color: '#94a3b8'}}>
+                        {repoMetadata.primary_language && (
+                          <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                            <span className="material-symbols-outlined" style={{fontSize: '14px', color: '#38bdf8'}}>code</span>
+                            {repoMetadata.primary_language}
+                          </span>
+                        )}
+                        {repoMetadata.stars_count !== undefined && repoMetadata.stars_count !== null && (
+                          <span style={{display: 'flex', alignItems: 'center', gap: '4px'}}>
+                            <span className="material-symbols-outlined" style={{fontSize: '14px', color: '#facc15'}}>star</span>
+                            {repoMetadata.stars_count}
+                          </span>
+                        )}
+                        {repoMetadata.resolved_commit_sha && (
+                          <span style={{display: 'flex', alignItems: 'center', gap: '4px', fontFamily: 'monospace'}}>
+                            <span className="material-symbols-outlined" style={{fontSize: '14px'}}>commit</span>
+                            {repoMetadata.resolved_commit_sha.slice(0, 8)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Branch & Commit Selection */}
+                  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px'}}>
+                    <div>
+                      <label className="form-label font-caps">BRANCH</label>
+                      <div className="input-wrapper">
+                        <span className="material-symbols-outlined input-icon">fork_right</span>
+                        {repoMetadata?.available_branches && repoMetadata.available_branches.length > 0 ? (
+                          <select
+                            className="form-input-lg font-mono"
+                            value={repositoryBranch}
+                            onChange={(e) => setRepositoryBranch(e.target.value)}
+                            style={{background: 'var(--color-surface, #111)', color: '#fff'}}
+                          >
+                            {repoMetadata.available_branches.map((b) => (
+                              <option key={b} value={b}>{b}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input 
+                            type="text" 
+                            className="form-input-lg font-mono" 
+                            value={repositoryBranch}
+                            onChange={(e) => setRepositoryBranch(e.target.value)}
+                            placeholder="main" 
+                          />
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="form-label font-caps">COMMIT SHA (OPTIONAL)</label>
+                      <div className="input-wrapper">
+                        <span className="material-symbols-outlined input-icon">commit</span>
+                        <input 
+                          type="text" 
+                          className="form-input-lg font-mono" 
+                          value={repositoryCommitSha}
+                          onChange={(e) => setRepositoryCommitSha(e.target.value)}
+                          placeholder="e.g. 7b3e1a0" 
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-muted" style={{fontSize: '12px', marginTop: '6px'}}>A descriptive identifier for reports.</p>
-              </div>
+              )}
             </div>
           </div>
+        </section>
+
+        {/* Authentication & Session Configuration (Optional) */}
+        <section className="form-section">
+          <div className="section-indicator indicator-secondary"></div>
+          <div className="section-header" style={{cursor: 'pointer'}} onClick={() => setShowAuthSettings(!showAuthSettings)}>
+            <div className="section-header-title">
+              <span className="material-symbols-outlined text-muted">lock</span>
+              <h2>Authentication Context & Authorization</h2>
+            </div>
+            <button type="button" className="btn-link font-caps text-primary" style={{cursor: 'pointer'}}>
+              {showAuthSettings ? 'Hide' : 'Configure (Optional)'}
+            </button>
+          </div>
+          
+          {showAuthSettings && (
+            <div className="section-body">
+              <div className="grid-cols-2">
+                {(discoveryMode === "WEBSITE_ONLY" || discoveryMode === "HYBRID") && (
+                  <div>
+                    <label className="form-label font-caps">SESSION COOKIE</label>
+                    <div className="input-wrapper">
+                      <span className="material-symbols-outlined input-icon">cookie</span>
+                      <input 
+                        type="password" 
+                        className="form-input-lg font-mono" 
+                        placeholder="session_id=...; token=..." 
+                        value={sessionCookie}
+                        onChange={(e) => setSessionCookie(e.target.value)}
+                      />
+                    </div>
+                    <p className="text-muted" style={{fontSize: '12px', marginTop: '6px'}}>Optional authenticated session cookie for authorized crawling.</p>
+                  </div>
+                )}
+
+                {(discoveryMode === "WEBSITE_ONLY" || discoveryMode === "HYBRID") && (
+                  <div>
+                    <label className="form-label font-caps">AUTHORIZATION HEADER</label>
+                    <div className="input-wrapper">
+                      <span className="material-symbols-outlined input-icon">key</span>
+                      <input 
+                        type="password" 
+                        className="form-input-lg font-mono" 
+                        placeholder="Bearer eyJhbGci..." 
+                        value={authHeader}
+                        onChange={(e) => setAuthHeader(e.target.value)}
+                      />
+                    </div>
+                    <p className="text-muted" style={{fontSize: '12px', marginTop: '6px'}}>Authorization header string injected into HTTP crawl requests.</p>
+                  </div>
+                )}
+
+                {(discoveryMode === "GITHUB_ONLY" || discoveryMode === "HYBRID") && (
+                  <div>
+                    <label className="form-label font-caps">GITHUB ACCESS TOKEN (PRIVATE REPOS)</label>
+                    <div className="input-wrapper">
+                      <span className="material-symbols-outlined input-icon">token</span>
+                      <input 
+                        type="password" 
+                        className="form-input-lg font-mono" 
+                        placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" 
+                        value={githubToken}
+                        onChange={(e) => setGithubToken(e.target.value)}
+                      />
+                    </div>
+                    <p className="text-muted" style={{fontSize: '12px', marginTop: '6px'}}>Personal access token with read permissions for private repository acquisition.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Scope Definition Section */}

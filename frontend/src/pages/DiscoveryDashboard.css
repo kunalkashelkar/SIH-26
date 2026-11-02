@@ -1,0 +1,306 @@
+/* Discovery Dashboard Styles */
+.discovery-container {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 64px);
+  width: 100%;
+  max-width: 100%;
+  background-color: var(--color-surface);
+  color: var(--color-on-surface);
+  box-sizing: border-box;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+/* Header */
+.discovery-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--color-outline-variant);
+  margin-bottom: 20px;
+}
+
+.discovery-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.discovery-header-title h1 {
+  font-family: var(--font-h2);
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.discovery-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: monospace;
+  text-transform: uppercase;
+}
+
+.badge-website {
+  background: rgba(0, 240, 255, 0.12);
+  color: #00f0ff;
+  border: 1px solid rgba(0, 240, 255, 0.3);
+}
+
+.badge-github {
+  background: rgba(168, 85, 247, 0.12);
+  color: #a855f7;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.badge-hybrid {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.discovery-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 14 Discovery Metrics Grid */
+.discovery-metrics-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.metric-card {
+  background-color: var(--color-surface-container-low);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.15s ease;
+}
+
+.metric-card:hover {
+  border-color: var(--color-primary);
+}
+
+.metric-card-label {
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metric-card-val {
+  font-size: 20px;
+  font-weight: 700;
+  font-family: monospace;
+  color: var(--color-on-surface);
+}
+
+/* Tab Navigation */
+.discovery-tabs-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--color-outline-variant);
+  margin-bottom: 20px;
+  overflow-x: auto;
+}
+
+.discovery-tab-btn {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-on-surface-variant);
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.discovery-tab-btn:hover {
+  color: var(--color-on-surface);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.discovery-tab-btn.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+  background: rgba(0, 240, 255, 0.05);
+}
+
+.tab-badge {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-family: monospace;
+}
+
+/* Tab Content Areas */
+.discovery-tab-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Data Tables */
+.discovery-table-wrapper {
+  background-color: var(--color-surface-container-lowest);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.discovery-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+
+.discovery-table th {
+  background-color: var(--color-surface-container);
+  color: var(--color-on-surface-variant);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.discovery-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  vertical-align: middle;
+}
+
+.discovery-table tr:hover td {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+/* Method Badges */
+.method-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: monospace;
+}
+
+.method-get { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
+.method-post { background: rgba(52, 211, 153, 0.15); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3); }
+.method-put { background: rgba(251, 191, 36, 0.15); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); }
+.method-delete { background: rgba(248, 113, 113, 0.15); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.3); }
+.method-patch { background: rgba(168, 85, 247, 0.15); color: #a855f7; border: 1px solid rgba(168, 85, 247, 0.3); }
+
+/* Status Badges */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: monospace;
+}
+
+.status-matched { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+.status-source-only { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
+.status-runtime-only { background: rgba(0, 240, 255, 0.15); color: #00f0ff; }
+.status-shadow { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+/* Empty & Error States */
+.state-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  gap: 12px;
+  color: var(--color-on-surface-variant);
+}
+
+.state-box h3 {
+  margin: 0;
+  color: var(--color-on-surface);
+  font-size: 16px;
+}
+
+/* Code Snippet Box */
+.code-snippet-box {
+  background: #0d1117;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+  color: #c9d1d9;
+  white-space: pre-wrap;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+/* Coverage Gaps Cards */
+.coverage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.coverage-card {
+  background: var(--color-surface-container-low);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.coverage-card h3 {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.coverage-card p {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  margin: 0 0 12px 0;
+}
+
+.coverage-stat-big {
+  font-size: 28px;
+  font-weight: 700;
+  font-family: monospace;
+}

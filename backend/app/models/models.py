@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Float, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Float, Boolean, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
@@ -23,6 +23,8 @@ class Target(Base):
     project_id = Column(String, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True)
     name = Column(String, nullable=False, index=True)
     base_url = Column(String, nullable=False, index=True)
+    repo_url = Column(String, nullable=True, index=True)
+    repo_branch = Column(String, nullable=True, default="main")
     description = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
@@ -32,13 +34,20 @@ class Target(Base):
 class Scan(Base):
     __tablename__ = "scans"
     id = Column(String, primary_key=True, default=generate_uuid)
-    target_id = Column(String, ForeignKey("targets.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String, nullable=True, index=True)
+    target_id = Column(String, ForeignKey("targets.id", ondelete="CASCADE"), nullable=True, index=True)
     status = Column(String, default="QUEUED", index=True)
     scan_mode = Column(String, default="Standard")
+    discovery_mode = Column(String, default="WEBSITE_ONLY", index=True)
+    website_url = Column(String, nullable=True, index=True)
+    repository_url = Column(String, nullable=True, index=True)
+    repository_branch = Column(String, nullable=True, default="main")
+    repository_commit_sha = Column(String, nullable=True)
     current_stage = Column(String, default="INITIALIZING", index=True)
     started_at = Column(DateTime(timezone=True))
     completed_at = Column(DateTime(timezone=True))
     progress = Column(Integer, default=0)
+    configuration = Column(JSON, nullable=True, default=dict)
     error_message = Column(Text, nullable=True)
     
     target = relationship("Target", back_populates="scans")
@@ -48,6 +57,14 @@ class Scan(Base):
     virtual_hosts = relationship("VirtualHost", back_populates="scan", cascade="all, delete-orphan")
     fuzz_results = relationship("FuzzResult", back_populates="scan", cascade="all, delete-orphan")
     logs = relationship("ScanLog", back_populates="scan", cascade="all, delete-orphan")
+
+    # Unified Discovery Relationships
+    website_profile = relationship("WebsiteProfile", uselist=False, back_populates="scan", cascade="all, delete-orphan")
+    repository_profile = relationship("RepositoryProfile", uselist=False, back_populates="scan", cascade="all, delete-orphan")
+    discovered_assets = relationship("DiscoveredAsset", back_populates="scan", cascade="all, delete-orphan")
+    discovery_events = relationship("DiscoveryEvent", back_populates="scan", cascade="all, delete-orphan")
+    discovery_errors = relationship("DiscoveryError", back_populates="scan", cascade="all, delete-orphan")
+    stages = relationship("ScanStage", back_populates="scan", cascade="all, delete-orphan")
 
 class Endpoint(Base):
     __tablename__ = "endpoints"
@@ -86,16 +103,30 @@ class Finding(Base):
     scan_id = Column(String, ForeignKey("scans.id", ondelete="CASCADE"), nullable=False, index=True)
     endpoint_id = Column(String, ForeignKey("endpoints.id", ondelete="SET NULL"), nullable=True, index=True)
     parameter_id = Column(String, ForeignKey("parameters.id", ondelete="SET NULL"), nullable=True, index=True)
+    asset_id = Column(String, nullable=True, index=True)
+    title = Column(String, nullable=True, index=True)
     vulnerability_type = Column(String, nullable=False, index=True)
-    severity = Column(String, nullable=False, index=True)  # CRITICAL, HIGH, MEDIUM, LOW
+    severity = Column(String, nullable=False, index=True)  # CRITICAL, HIGH, MEDIUM, LOW, INFO
     confidence = Column(String, default="90%")
     priority = Column(String, default="P2", index=True)
-    status = Column(String, default="open", index=True)  # open, verified, verified_fixed, closed
+    status = Column(String, default="open", index=True)  # open, verified, likely, unconfirmed, false_positive, closed
     description = Column(Text, nullable=True)
+    technical_details = Column(Text, nullable=True)
     impact = Column(Text, nullable=True)
+    remediation = Column(Text, nullable=True)
+    affected_url = Column(String, nullable=True)
+    affected_endpoint = Column(String, nullable=True)
+    http_method = Column(String, nullable=True)
+    parameter_name = Column(String, nullable=True)
+    source_file = Column(String, nullable=True)
+    source_line_start = Column(Integer, nullable=True)
+    source_line_end = Column(Integer, nullable=True)
     cwe = Column(String, nullable=True)
     owasp_category = Column(String, nullable=True)
-    remediation = Column(Text, nullable=True)
+    detection_method = Column(String, nullable=True) # STATIC_AST, DYNAMIC_FUZZING, RUNTIME_INTERCEPTION
+    validation_method = Column(String, nullable=True)
+    first_detected_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_updated_at = Column(DateTime(timezone=True), server_default=func.now())
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     scan = relationship("Scan", back_populates="findings")
@@ -187,3 +218,13 @@ class ScanLog(Base):
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
     
     scan = relationship("Scan", back_populates="logs")
+
+# Register unified discovery models with Base metadata
+from app.models.discovery import (
+    DiscoveryStatus, DiscoverySource, AssetType, ScanMode,
+    WebsiteProfile, RepositoryProfile, DiscoveredAsset,
+    DiscoveredPage, DiscoveredRoute, DiscoveredEndpoint as HybridDiscoveredEndpoint,
+    EndpointParameter, DiscoveredForm, SourceFile,
+    SourceEvidence, RuntimeEvidence, AuthenticationObservation,
+    DiscoveryEvent, DiscoveryError, AssetRelationship
+)
